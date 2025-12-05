@@ -4,6 +4,9 @@ from imports import (
     ft, datetime, time, threading, Decimal, os, sys, 
     win32event, win32api, winerror, ctypes, traceback
 )
+if getattr(sys, 'frozen', False):
+    sys.stdout = open(os.devnull, 'w')
+    sys.stderr = open(os.devnull, 'w')
 
 # Windows görev çubuğu simgesi için AppUserModelID ayarla (en başta yapılmalı)
 try:
@@ -506,12 +509,12 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
         # --- TABLO OLUŞTURMA (YENİ TASARIM - 3 AYLIK GRUPLAMA) ---
         
         # Sütun Genişlikleri
-        w_donem = 100
-        w_gelir = 160
-        w_gider = 160
-        w_kdv = 140
+        w_donem = 90
+        w_gelir = 140
+        w_gider = 140
+        w_kdv_farki = 120
         w_kurumlar = 140
-        w_odenecek = 180
+        w_odenecek = 160
         
         # Header
         header_row = ft.Container(
@@ -519,13 +522,13 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
             padding=ft.padding.symmetric(vertical=12, horizontal=10),
             border_radius=ft.border_radius.only(top_left=10, top_right=10),
             content=ft.Row([
-                ft.Container(width=w_donem, content=ft.Text("DÖNEM", weight="bold", color=col_white, size=12)),
-                ft.Container(width=w_gelir, content=ft.Text("GELİR (Kesilen)", weight="bold", color=col_white, size=12)),
-                ft.Container(width=w_gider, content=ft.Text("GİDER (Gelen + Genel)", weight="bold", color=col_white, size=12)),
-                ft.Container(width=w_kdv, content=ft.Text("KDV FARKI", weight="bold", color=col_white, size=12)),
-                ft.Container(width=w_kurumlar, content=ft.Text("KURUMLAR VERGİSİ", weight="bold", color=col_white, size=12)),
-                ft.Container(expand=True, content=ft.Text("ÖDENECEK VERGİ (3 Aylık)", weight="bold", color=col_white, size=12)),
-            ], spacing=10)
+                ft.Container(width=w_donem, content=ft.Text("DÖNEM", weight="bold", color=col_white, size=11)),
+                ft.Container(width=w_gelir, content=ft.Text("GELİR (Kesilen)", weight="bold", color=col_white, size=11)),
+                ft.Container(width=w_gider, content=ft.Text("GİDER (Gelen + Genel)", weight="bold", color=col_white, size=11)),
+                ft.Container(width=w_kdv_farki, content=ft.Text("KDV FARKI", weight="bold", color=col_white, size=11)),
+                ft.Container(width=w_kurumlar, content=ft.Text("KURUMLAR VERGİSİ", weight="bold", color=col_white, size=11)),
+                ft.Container(expand=True, content=ft.Text("ÖDENECEK VERGİ (3 Aylık)", weight="bold", color=col_white, size=11)),
+            ], spacing=8)
         )
         
         quarter_blocks = []
@@ -533,13 +536,14 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
         total_income = 0.0
         total_expense = 0.0
         total_general = 0.0
-        total_kdv_diff = 0.0
+        total_income_kdv = 0.0
+        total_expense_kdv = 0.0
         total_kurumlar_vergisi = 0.0
         
         # 4 Çeyrek Döngüsü
         for q in range(4):
             start_month = q * 3
-            quarter_tax_total = 0.0
+            quarter_kurumlar_total = 0.0  # Çeyrek Kurumlar Vergisi toplamı
             
             left_rows = []
             
@@ -555,22 +559,23 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
                 expense_kdv = monthly_expense_kdv[i]
                 
                 tax_percentage = monthly_corporate_tax[i]
-                taxable_base = income + expense
-                kurumlar_vergisi = (taxable_base * tax_percentage / 100) if tax_percentage > 0 else 0
-                
                 total_month_expense = expense + general
-                kdv_diff = abs(income_kdv - expense_kdv)
-                odenecek_vergi = kdv_diff + kurumlar_vergisi
+                
+                # Kurumlar vergisi: Gelir - Gider üzerinden hesaplanır
+                # Negatif değerler de gösterilir (zarar durumu)
+                taxable_base = income - total_month_expense
+                kurumlar_vergisi = (taxable_base * tax_percentage / 100) if tax_percentage > 0 else 0
                 
                 # Toplamları güncelle
                 total_income += income
                 total_expense += total_month_expense
                 total_general += general
-                total_kdv_diff += kdv_diff
+                total_income_kdv += income_kdv
+                total_expense_kdv += expense_kdv
                 total_kurumlar_vergisi += kurumlar_vergisi
                 
-                # Çeyrek içindeki toplamları güncelle
-                quarter_tax_total += odenecek_vergi
+                # Çeyrek içindeki kurumlar vergisi toplamını güncelle
+                quarter_kurumlar_total += kurumlar_vergisi
                 
                 # Sol taraf satırı (Ay detayları)
                 month_cell = ft.Container(
@@ -581,35 +586,55 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
                     alignment=ft.alignment.center_left
                 )
                 
+                # Gelir bölümü: Tutar ve altında KDV
+                gelir_content = ft.Column([
+                    ft.Text(f"{income:,.2f} TL", size=12, color="#333333", weight="bold"),
+                    ft.Text(f"KDV: {income_kdv:,.2f} TL", size=9, color="#9AA1B9")
+                ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.START)
+                
+                # Gider bölümü: Tutar ve altında KDV
+                gider_content = ft.Column([
+                    ft.Text(f"{total_month_expense:,.2f} TL", size=12, color="#333333", weight="bold"),
+                    ft.Text(f"KDV: {expense_kdv:,.2f} TL", size=9, color="#9AA1B9")
+                ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.START)
+                
+                # KDV Farkı hesapla (Gelir KDV - Gider KDV)
+                kdv_farki = income_kdv - expense_kdv
+                kdv_farki_color = "#28a745" if kdv_farki >= 0 else "#dc3545"
+                kdv_farki_content = ft.Text(f"{kdv_farki:,.2f} TL", size=12, color=kdv_farki_color, weight="bold")
+                
+                # Kurumlar vergisi bölümü: Sadece TextField (yüzde girişi)
                 if tax_fields and i < len(tax_fields):
                     kurumlar_content = tax_fields[i]
                 else:
-                    kurumlar_content = ft.Text(f"{kurumlar_vergisi:,.2f} TL" if kurumlar_vergisi > 0 else "-", size=12, color="#333333")
+                    kurumlar_content = ft.Text(f"%{kurumlar_yuzde:.0f}" if kurumlar_yuzde > 0 else "-", 
+                                              size=12, color="#333333")
                 
                 row = ft.Container(
-                    height=45,
-                    padding=ft.padding.symmetric(vertical=0),
+                    height=48,  # Satır yüksekliği normale döndü
+                    padding=ft.padding.symmetric(vertical=5),
                     border=ft.border.only(bottom=ft.border.BorderSide(1, "#F0F0F0")) if i % 3 != 2 else None,
                     content=ft.Row([
                         month_cell,
-                        ft.Container(width=w_gelir, content=ft.Text(f"{income:,.2f} TL", size=12, color="#333333")),
-                        ft.Container(width=w_gider, content=ft.Text(f"{total_month_expense:,.2f} TL", size=12, color="#333333")),
-                        ft.Container(width=w_kdv, content=ft.Text(f"{kdv_diff:,.2f} TL", size=12, color="#333333")),
-                        ft.Container(width=w_kurumlar, content=kurumlar_content, alignment=ft.alignment.center_left),
-                    ], spacing=10, alignment=ft.MainAxisAlignment.START)
+                        ft.Container(width=w_gelir, content=gelir_content),
+                        ft.Container(width=w_gider, content=gider_content),
+                        ft.Container(width=w_kdv_farki, content=kdv_farki_content, alignment=ft.alignment.center),
+                        ft.Container(width=w_kurumlar, content=kurumlar_content, alignment=ft.alignment.center),
+                    ], spacing=8, alignment=ft.MainAxisAlignment.START)
                 )
                 left_rows.append(row)
             
             # Sol Kolon (3 Satır)
             left_column = ft.Column(left_rows, spacing=0)
             
-            # Sağ Kolon (Tek Büyük Hücre)
+            # Sağ Kolon (Tek Büyük Hücre) - Kurumlar Vergisi toplamı gösterilir
+            quarter_color = "#28a745" if quarter_kurumlar_total >= 0 else "#dc3545"
             right_cell = ft.Container(
                 expand=True,
-                height=135, # 3 * 45
+                height=144, # 3 * 48 (satır yüksekliği güncellendi)
                 content=ft.Column([
                     ft.Text("ÇEYREK TOPLAM", size=10, color="#999999", weight="bold"),
-                    ft.Text(f"{quarter_tax_total:,.2f} TL", size=16, weight="bold", color=col_primary)
+                    ft.Text(f"{quarter_kurumlar_total:,.2f} TL", size=16, weight="bold", color=quarter_color)
                 ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 alignment=ft.alignment.center,
                 border=ft.border.only(left=ft.border.BorderSide(1, "#E0E0E0")),
@@ -626,33 +651,7 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
             )
             quarter_blocks.append(quarter_block)
         
-        # Toplam Kartı
-        total_odenecek_vergi = total_kdv_diff + total_kurumlar_vergisi
-        
-        total_card = ft.Container(
-            margin=ft.margin.only(top=10), 
-            padding=20, 
-            bgcolor="#F8F7FC", 
-            border=ft.border.all(1, "#E0DBF5"), 
-            border_radius=12, 
-            shadow=ft.BoxShadow(blur_radius=5, color="#106C5DD3", offset=ft.Offset(0, 3)),
-            content=ft.Row([
-                ft.Row([ft.Icon("functions", color=col_primary), ft.Text("GENEL TOPLAM", color=col_primary, weight="bold", size=16)], spacing=10),
-                ft.Row([
-                    ft.Column([ft.Text("Gelir", color="#9AA1B9", size=11), ft.Text(f"{total_income:,.2f} TL", color=col_text, weight="bold")], spacing=2),
-                    ft.Container(width=1, height=30, bgcolor="#D0D0D0"),
-                    ft.Column([ft.Text("Gider (Fatura + Genel)", color="#9AA1B9", size=11), ft.Text(f"{total_expense:,.2f} TL", color=col_text, weight="bold")], spacing=2),
-                    ft.Container(width=1, height=30, bgcolor="#D0D0D0"),
-                    ft.Column([ft.Text("KDV Farkı", color="#9AA1B9", size=11), ft.Text(f"{total_kdv_diff:,.2f} TL", color=col_text, weight="bold")], spacing=2),
-                    ft.Container(width=1, height=30, bgcolor="#D0D0D0"),
-                    ft.Column([ft.Text("Kurumlar Vergisi", color="#9AA1B9", size=11), ft.Text(f"{total_kurumlar_vergisi:,.2f} TL", color=col_text, weight="bold")], spacing=2),
-                    ft.Container(width=1, height=30, bgcolor="#D0D0D0"),
-                    ft.Column([ft.Text("Ödenecek Vergi", color=col_danger, size=11, weight="bold"), ft.Text(f"{total_odenecek_vergi:,.2f} TL", color=col_text, weight="bold", size=16)], spacing=2),
-                ], spacing=20)
-            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
-        )
-        
-        return ft.Column([header_row] + quarter_blocks + [total_card])
+        return ft.Column([header_row] + quarter_blocks)
         
     except Exception as e:
         return ft.Text("Veri yüklenirken hata oluştu.")
@@ -1168,7 +1167,7 @@ def currency_button(text, currency_code, current_selection, on_click_handler):
 # ANA UYGULAMA (Main Application)
 # ============================================================================
 def main(page: ft.Page):
-    page.title = "Excellent MVP Dashboard"
+    page.title = "Excellent"
     page.padding = 0
     page.bgcolor = col_bg
     page.window.width = 1400 
@@ -1617,7 +1616,7 @@ def main(page: ft.Page):
     def toggle_sidebar(e):
         state["sidebar_expanded"] = not state["sidebar_expanded"]
         sidebar_container.width = 260 if state["sidebar_expanded"] else 90
-        logo_text.visible = state["sidebar_expanded"]
+        logo_column.visible = state["sidebar_expanded"]
         menu_row.alignment = ft.MainAxisAlignment.START if state["sidebar_expanded"] else ft.MainAxisAlignment.CENTER
         
         # Nested Column yapısında butonları güncelle
@@ -1946,44 +1945,46 @@ def main(page: ft.Page):
                 if month_key in corporate_tax_data:
                     monthly_corporate_tax[i] = float(corporate_tax_data[month_key] or 0)
             
-            # Aylık sonuçlar
+            # Aylık sonuçları hazırla
             monthly_results = []
+            total_income = 0.0
+            total_expense = 0.0
+            
             for i in range(12):
-                total_expense = monthly_expense[i] + monthly_general[i]
-                kdv_farki = abs(monthly_income_kdv[i] - monthly_expense_kdv[i])
-                
-                # Kurumlar vergisi hesabı
+                income = monthly_income[i]
+                expense = monthly_expense[i]
+                general = monthly_general[i]
+                income_kdv = monthly_income_kdv[i]
+                expense_kdv = monthly_expense_kdv[i]
                 tax_percentage = monthly_corporate_tax[i]
-                taxable_base = monthly_income[i] + monthly_expense[i]
+                
+                total_month_expense = expense + general
+                taxable_base = income - total_month_expense
                 kurumlar_vergisi = (taxable_base * tax_percentage / 100) if tax_percentage > 0 else 0
                 
+                total_income += income
+                total_expense += total_month_expense
+                
                 monthly_results.append({
-                    'kesilen': monthly_income[i],
-                    'gelen': total_expense,
-                    'kdv': kdv_farki,
-                    'kurumlar': kurumlar_vergisi
+                    'kesilen': income,
+                    'gelen': total_month_expense,
+                    'kdv': income_kdv - expense_kdv,
+                    'kurumlar': kurumlar_vergisi,
+                    'kurumlar_yuzde': tax_percentage,
+                    'gelir_kdv': income_kdv,
+                    'gider_kdv': expense_kdv
                 })
             
-            # Çeyreklik sonuçlar
+            # Çeyreklik sonuçları hesapla
             quarterly_results = []
             for q in range(4):
                 start_month = q * 3
-                end_month = start_month + 3
-                q_income = sum(monthly_income[start_month:end_month])
-                q_expense = sum(monthly_expense[start_month:end_month]) + sum(monthly_general[start_month:end_month])
-                q_tax_percentage = monthly_corporate_tax[end_month - 1]  # Son ayın yüzdesi
-                q_kurumlar = (q_income + sum(monthly_expense[start_month:end_month])) * q_tax_percentage / 100 if q_tax_percentage > 0 else 0
-                q_kdv = sum(abs(monthly_income_kdv[i] - monthly_expense_kdv[i]) for i in range(start_month, end_month))
-                quarterly_results.append({
-                    'odenecek_kv': q_kurumlar + q_kdv
-                })
+                quarter_kurumlar = sum(monthly_results[start_month + j]['kurumlar'] for j in range(3))
+                quarterly_results.append({'odenecek_kv': quarter_kurumlar})
             
-            # Özet
-            total_income = sum(monthly_income)
-            total_expense = sum(monthly_expense) + sum(monthly_general)
-            total_kdv = sum(abs(monthly_income_kdv[i] - monthly_expense_kdv[i]) for i in range(12))
             total_kurumlar = sum(q['odenecek_kv'] for q in quarterly_results)
-            net_profit = total_income - total_expense - total_kdv - (total_kurumlar - total_kdv)  # KDV daha önce çıkarıldı
+            total_kdv = sum(m['kdv'] for m in monthly_results)
+            net_profit = total_income - total_expense - total_kurumlar
             
             summary = {
                 'toplam_gelir': total_income,
@@ -2981,9 +2982,11 @@ def main(page: ft.Page):
         content_area.update()
 
     
-    logo_text = ft.Text("Excellent", size=24, weight="bold", color=col_text, visible=False)
+    logo_text = ft.Text("Excellent", size=24, weight="bold", color=col_text)
+    logo_text2 = ft.Text("with Rust", size=10, weight="normal", color=col_text)
     menu_icon = ft.IconButton(icon="menu", icon_color=col_text, on_click=toggle_sidebar)
-    menu_row = ft.Row([menu_icon, logo_text], spacing=5, alignment=ft.MainAxisAlignment.CENTER)
+    logo_column = ft.Column([logo_text, logo_text2], spacing=0, visible=False, alignment=ft.MainAxisAlignment.CENTER)
+    menu_row = ft.Row([menu_icon, logo_column], spacing=5, alignment=ft.MainAxisAlignment.CENTER)
 
     btn_home = SidebarButton("home_rounded", "Giriş", "home", False)  # Başlangıçta False
     btn_faturalar = SidebarButton("receipt_long_rounded", "Faturalar", "faturalar")

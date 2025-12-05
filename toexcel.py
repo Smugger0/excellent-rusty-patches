@@ -364,6 +364,39 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
                 'bg_color': color_code
             })
         
+        # KDV alt satırı için format (daha küçük ve gri)
+        kdv_format_base = {
+            'num_format': '"KDV: "#,##0.00 ₺',
+            'align': 'right',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 9,
+            'font_color': '#666666'
+        }
+        
+        kdv_formats = {}
+        for color_name, color_code in colors.items():
+            kdv_formats[color_name] = workbook.add_format({
+                **kdv_format_base,
+                'bg_color': color_code
+            })
+        
+        # Yüzde formatı
+        percent_format_base = {
+            'num_format': '%#,##0',
+            'align': 'center',
+            'valign': 'vcenter',
+            'border': 1,
+            'font_size': 10
+        }
+        
+        percent_formats = {}
+        for color_name, color_code in colors.items():
+            percent_formats[color_name] = workbook.add_format({
+                **percent_format_base,
+                'bg_color': color_code
+            })
+        
         # Toplam satırı formatı
         total_format = workbook.add_format({
             'bold': True,
@@ -382,6 +415,16 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
             'bg_color': '#E7E6E6',
             'border': 1,
             'font_size': 11
+        })
+        
+        total_kdv_format = workbook.add_format({
+            'num_format': '"KDV: "#,##0.00 ₺',
+            'align': 'right',
+            'valign': 'vcenter',
+            'bg_color': '#E7E6E6',
+            'border': 1,
+            'font_size': 9,
+            'font_color': '#666666'
         })
         
         # Kâr satırı formatı
@@ -405,12 +448,14 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
         })
         
         # Sütun genişlikleri
-        worksheet.set_column('A:A', 18)  # AYLAR
-        worksheet.set_column('B:E', 20)  # Para sütunları
-        worksheet.set_column('F:F', 25)  # Ödenecek Vergi
+        worksheet.set_column('A:A', 14)  # AYLAR
+        worksheet.set_column('B:C', 22)  # Gelir, Gider (KDV alt satırı için daha geniş)
+        worksheet.set_column('D:D', 16)  # KDV Farkı
+        worksheet.set_column('E:E', 18)  # Kurumlar Vergisi (%)
+        worksheet.set_column('F:F', 22)  # Çeyrek Toplam
         
         # Başlıklar
-        headers = ['AYLAR', 'GELİR (Kesilen)', 'GİDER (Gelen)', 'KDV FARKI', 'KURUMLAR VERGİSİ', 'ÖDENECEK VERGİ (3 Aylık)']
+        headers = ['AYLAR', 'GELİR', 'GİDER', 'KDV FARKI', 'KURUMLAR VERGİSİ (%)', 'ÇEYREK TOPLAM']
         for col, header in enumerate(headers):
             worksheet.write(0, col, header, header_format)
         
@@ -425,40 +470,46 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
             9: 'yesil', 10: 'yesil', 11: 'yesil'
         }
         
-        total_kdv_farki = 0.0
         total_kurumlar = 0.0
-        total_vergi = 0.0
         
+        # Her ay için 2 satır kullanılacak: 1. Tutar, 2. KDV
+        current_row = 1
         for i, month_name in enumerate(months):
-            row = i + 1
             monthly_data = monthly_results[i]
             color = color_mapping[i]
             
-            kdv_farki = monthly_data.get('kdv', 0)
+            kurumlar_yuzde = monthly_data.get('kurumlar_yuzde', 0)
             kurumlar = monthly_data.get('kurumlar', 0)
-            
-            total_kdv_farki += kdv_farki
             total_kurumlar += kurumlar
             
-            # Ay adı
-            worksheet.write(row, 0, month_name, month_formats[color])
+            gelir = monthly_data.get('kesilen', 0)
+            gider = monthly_data.get('gelen', 0)
+            gelir_kdv = monthly_data.get('gelir_kdv', 0)
+            gider_kdv = monthly_data.get('gider_kdv', 0)
+            kdv_farki = gelir_kdv - gider_kdv
             
-            # Para değerleri
-            worksheet.write(row, 1, monthly_data.get('kesilen', 0), money_formats[color])
-            worksheet.write(row, 2, monthly_data.get('gelen', 0), money_formats[color])
-            worksheet.write(row, 3, kdv_farki, money_formats[color])
-            worksheet.write(row, 4, kurumlar, money_formats[color])
+            # Ana satır - Tutar
+            worksheet.write(current_row, 0, month_name, month_formats[color])
+            worksheet.write(current_row, 1, gelir, money_formats[color])
+            worksheet.write(current_row, 2, gider, money_formats[color])
+            worksheet.write(current_row, 3, kdv_farki, money_formats[color])
+            worksheet.write(current_row, 4, kurumlar_yuzde / 100 if kurumlar_yuzde else 0, percent_formats[color])
             
-            # Ödenecek Vergi (Çeyreklik Birleştirme)
+            # Alt satır - KDV
+            worksheet.write(current_row + 1, 0, '', month_formats[color])
+            worksheet.write(current_row + 1, 1, gelir_kdv, kdv_formats[color])
+            worksheet.write(current_row + 1, 2, gider_kdv, kdv_formats[color])
+            worksheet.write(current_row + 1, 3, '', month_formats[color])
+            worksheet.write(current_row + 1, 4, '', month_formats[color])
+            
+            # Çeyrek Toplam (her 3 ayda bir birleştirme)
             if i % 3 == 0:
                 q_index = i // 3
                 odenecek_vergi = 0.0
                 if q_index < len(quarterly_results):
                     odenecek_vergi = quarterly_results[q_index].get('odenecek_kv', 0)
-                    total_vergi += odenecek_vergi
                 
-                # 3 satırı birleştir
-                # Formatı ortalayarak ayarla
+                # 6 satırı birleştir (3 ay * 2 satır)
                 merged_format = workbook.add_format({
                     'num_format': '#,##0.00 ₺',
                     'align': 'center',
@@ -466,28 +517,16 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
                     'border': 1,
                     'font_size': 12,
                     'bold': True,
-                    'bg_color': colors[color] # Aynı renk
+                    'bg_color': colors[color]
                 })
-                worksheet.merge_range(row, 5, row + 2, 5, odenecek_vergi, merged_format)
-        
-        # Toplam satırı (row 13)
-        total_row = 13
-        worksheet.write(total_row, 0, 'GENEL TOPLAM', total_format)
-        worksheet.write(total_row, 1, summary.get('toplam_gelir', 0), total_money_format)
-        worksheet.write(total_row, 2, summary.get('toplam_gider', 0), total_money_format)
-        worksheet.write(total_row, 3, total_kdv_farki, total_money_format)
-        worksheet.write(total_row, 4, total_kurumlar, total_money_format)
-        worksheet.write(total_row, 5, total_vergi, total_money_format)
-        
-        # Kâr satırı (row 14) - Birleştirilmiş hücreler
-        kar_row = 14
-        worksheet.merge_range(kar_row, 0, kar_row, 4, 'YILLIK NET KÂR', kar_label_format)
-        worksheet.write(kar_row, 5, summary.get('yillik_kar', 0), kar_value_format)
+                worksheet.merge_range(current_row, 5, current_row + 5, 5, odenecek_vergi, merged_format)
+            
+            current_row += 2  # Her ay için 2 satır
         
         # Satır yükseklikleri
         worksheet.set_row(0, 25)  # Başlık
-        for i in range(1, 15):
-            worksheet.set_row(i, 22)  # Veri satırları
+        for i in range(1, current_row):
+            worksheet.set_row(i, 18)  # Veri satırları
         
         workbook.close()
         

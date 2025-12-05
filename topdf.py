@@ -239,6 +239,13 @@ class InvoicePDFExporter:
         # Uygulama benzeri tablo başlığı
         story.append(Paragraph('<b>FATURA LISTESI</b>', 
                              ParagraphStyle('TableTitle', fontName=turkish_font_bold, fontSize=12, 
+                                          alignment=1, spaceAfter=5)))
+        
+        # Fatura tipi başlığı (Gelir mi Gider mi)
+        type_text = "GELİR FATURALARI (Kesilen)" if invoice_type == 'outgoing' else "GİDER FATURALARI (Gelen)"
+        type_color = '#28a745' if invoice_type == 'outgoing' else '#dc3545'  # Yeşil / Kırmızı
+        story.append(Paragraph(f'<font color="{type_color}"><b>{type_text}</b></font>', 
+                             ParagraphStyle('TypeTitle', fontName=turkish_font_bold, fontSize=10, 
                                           alignment=1, spaceAfter=15)))
         
         # Hücre stili - Metin kaydırma için
@@ -673,14 +680,21 @@ def export_monthly_income_to_pdf(year, monthly_results, quarterly_results, summa
         # Tablo verilerini hazırla
         months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
                  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-        table_data = [["AYLAR", "GELİR (Kesilen)", "GİDER (Gelen)", "KDV FARKI", "KURUMLAR VERGİSİ", "ÖDENECEK VERGİ"]]
+        table_data = [["AYLAR", "GELİR", "GİDER", "KDV FARKI", "KURUMLAR VERGİSİ (%)", "ÇEYREK TOPLAM"]]
         
         total_kurumlar = 0.0
         
         for i, month_name in enumerate(months):
             monthly_data = monthly_results[i]
             kurumlar = monthly_data.get('kurumlar', 0)
+            kurumlar_yuzde = monthly_data.get('kurumlar_yuzde', 0)
             total_kurumlar += kurumlar
+            
+            gelir = monthly_data.get('kesilen', 0)
+            gider = monthly_data.get('gelen', 0)
+            gelir_kdv = monthly_data.get('gelir_kdv', 0)
+            gider_kdv = monthly_data.get('gider_kdv', 0)
+            kdv_farki = gelir_kdv - gider_kdv
             
             odenecek_vergi = ""
             if i % 3 == 0: # Start of quarter
@@ -688,72 +702,64 @@ def export_monthly_income_to_pdf(year, monthly_results, quarterly_results, summa
                 if q_index < len(quarterly_results):
                     odenecek_vergi = f"{quarterly_results[q_index].get('odenecek_kv', 0):,.2f} TL"
             
+            # Ana tutar satırı
             table_data.append([
                 month_name,
-                f"{monthly_data.get('kesilen', 0):,.2f} TL",
-                f"{monthly_data.get('gelen', 0):,.2f} TL",
-                f"{monthly_data.get('kdv', 0):,.2f} TL",
-                f"{kurumlar:,.2f} TL",
+                f"{gelir:,.2f} TL",
+                f"{gider:,.2f} TL",
+                f"{kdv_farki:,.2f} TL",
+                f"%{kurumlar_yuzde:.0f}" if kurumlar_yuzde > 0 else "-",
                 odenecek_vergi
             ])
-        
-        # Toplam satırları
-        total_kdv = sum(m.get('kdv', 0) for m in monthly_results)
-        total_vergi = sum(q.get('odenecek_kv', 0) for q in quarterly_results)
-        
-        table_data.append(["GENEL TOPLAM",
-                         f"{summary.get('toplam_gelir', 0):,.2f} TL",
-                         f"{summary.get('toplam_gider', 0):,.2f} TL",
-                         f"{total_kdv:,.2f} TL",
-                         f"{total_kurumlar:,.2f} TL",
-                         f"{total_vergi:,.2f} TL"])
-        table_data.append(["YILLIK NET KÂR", "", "", "", "", f"{summary.get('yillik_kar', 0):,.2f} TL"])
+            # KDV alt satırı
+            table_data.append([
+                "",
+                f"KDV: {gelir_kdv:,.2f} TL",
+                f"KDV: {gider_kdv:,.2f} TL",
+                "",
+                "",
+                ""
+            ])
         
         # Tabloyu oluştur
-        table = Table(table_data, colWidths=[4*cm, 4*cm, 4*cm, 4*cm, 4*cm, 4.5*cm])
+        table = Table(table_data, colWidths=[3*cm, 4*cm, 4*cm, 3.5*cm, 4*cm, 4.5*cm])
         
         # Temel stiller
         table_styles = [
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#6C5DD3')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('FONTNAME', (0, 0), (-1, 0), turkish_font_bold),
-            ('FONTSIZE', (0, 0), (-1, 0), 10),
+            ('FONTSIZE', (0, 0), (-1, 0), 9),
             ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
             ('TOPPADDING', (0, 0), (-1, 0), 8),
             
             # Veri satırları
             ('FONTNAME', (0, 1), (-1, -1), turkish_font),
-            ('FONTSIZE', (0, 1), (-1, -1), 9),
-            ('BOTTOMPADDING', (0, 1), (-1, -1), 5),
-            ('TOPPADDING', (0, 1), (-1, -1), 5),
+            ('FONTSIZE', (0, 1), (-1, -1), 8),
+            ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+            ('TOPPADDING', (0, 1), (-1, -1), 3),
             
             # Hizalamalar
             ('ALIGN', (0, 1), (0, -1), 'LEFT'),
             ('ALIGN', (1, 1), (-1, -1), 'RIGHT'),
-            
-            # Alternating rows
-            ('ROWBACKGROUNDS', (0, 1), (-1, -3), [colors.white, colors.HexColor('#f9f9f9')]),
-            
-            # Toplam satırları vurgusu
-            ('BACKGROUND', (0, -2), (-1, -2), colors.HexColor('#e8f5e8')),
-            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#fff2e8')),
-            ('FONTNAME', (0, -2), (-1, -1), turkish_font_bold),
-            ('FONTNAME', (0, -1), (-1, -1), turkish_font_bold),
+            ('ALIGN', (4, 1), (4, -1), 'CENTER'),  # Yüzde sütunu ortalı
             
             # Grid
             ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#d0d0d0')),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            
-            # Net Kâr birleştirme
-            ('SPAN', (0, -1), (4, -1)),
-            ('ALIGN', (0, -1), (4, -1), 'RIGHT'),
         ]
         
-        # Çeyreklik birleştirmeler (Ödenecek Vergi sütunu)
+        # KDV satırları için küçük font ve gri renk
+        for i in range(12):
+            kdv_row = 2 + (i * 2)  # Her ayın 2. satırı KDV satırı
+            table_styles.append(('FONTSIZE', (0, kdv_row), (-1, kdv_row), 7))
+            table_styles.append(('TEXTCOLOR', (0, kdv_row), (-1, kdv_row), colors.HexColor('#666666')))
+        
+        # Çeyreklik birleştirmeler (Çeyrek Toplam sütunu)
         for q in range(4):
-            start_row = q * 3 + 1
-            end_row = start_row + 2
+            start_row = q * 6 + 1  # Her çeyrek 6 satır (3 ay * 2 satır)
+            end_row = start_row + 5
             table_styles.append(('SPAN', (5, start_row), (5, end_row)))
             table_styles.append(('VALIGN', (5, start_row), (5, end_row), 'MIDDLE'))
             table_styles.append(('ALIGN', (5, start_row), (5, end_row), 'CENTER'))
