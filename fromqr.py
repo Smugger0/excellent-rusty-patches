@@ -15,7 +15,8 @@ try:
     RUST_AVAILABLE = True
 except ImportError:
     RUST_AVAILABLE = False
-    print("UYARI: 'rust_qr_backend' modülü bulunamadı, QR okuma çalışmayacak.")
+    import warnings
+    warnings.warn("UYARI: 'rust_qr_backend' modülü bulunamadı. Lütfen 'maturin develop --release' çalıştırın.", ImportWarning)
 # ------------------
 
 

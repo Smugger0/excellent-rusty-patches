@@ -3,7 +3,7 @@
 
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
-from db import Database
+import rust_db  # Async Rust database module
 from invoices import InvoiceProcessor, InvoiceManager, PeriodicIncomeCalculator
 
 
@@ -30,7 +30,11 @@ class Backend:
         self.on_data_updated = None  # Frontend tarafından atanacak
         self.on_status_updated = None  # Frontend tarafından atanacak
         
-        self.db = Database()
+        # Rust async database initialization
+        self.db = rust_db.Database()
+        self.db.init_connections()
+        self.db.create_tables()
+        
         self.settings = self.db.get_all_settings()
         # Vergi oranını float'a dönüştür
         if 'kurumlar_vergisi_yuzdesi' in self.settings:
@@ -90,8 +94,16 @@ class Backend:
         self.rate_update_timer.start()
         
 
-    def update_exchange_rates(self):
-        """Döviz kurlarını TCMB'den çeker, başarısız olursa önceki günün kurlarını kullanır."""
+    def update_exchange_rates(self, force_refresh=False):
+        """Döviz kurlarını TCMB'den çeker, başarısız olursa önceki günün kurlarını kullanır.
+        
+        Args:
+            force_refresh: True ise cache'i atla ve yeniden çek
+        """
+        # Eğer force_refresh değilse ve kurlar zaten varsa, tekrar çekme (cache kullan)
+        if not force_refresh and self.exchange_rates.get('USD', 0) > 0 and self.exchange_rates.get('EUR', 0) > 0:
+            logging.debug("Kur cache'den kullanılıyor")
+            return
         
         # Önce TCMB'den deneyelim
         if self._fetch_from_tcmb():
@@ -200,16 +212,18 @@ class Backend:
     def _save_rates_to_db(self):
         """Güncel döviz kurlarını veritabanına kaydeder."""
         try:
-            self.db.save_exchange_rates(self.exchange_rates)
+            usd_rate = self.exchange_rates.get('USD', 0.0)
+            eur_rate = self.exchange_rates.get('EUR', 0.0)
+            self.db.save_exchange_rates(usd_rate, eur_rate)
         except Exception as e:
             logging.error(f"Kurları veritabanına kaydetme hatası: {e}")
     
     def _load_rates_from_db(self):
         """Veritabanından son kaydedilen kurları yükler."""
         try:
-            rates = self.db.load_exchange_rates()
-            if rates:
-                self.exchange_rates = rates
+            usd_rate, eur_rate = self.db.load_exchange_rates()
+            if usd_rate > 0 or eur_rate > 0:
+                self.exchange_rates = {'USD': usd_rate, 'EUR': eur_rate}
                 logging.info(f"Veritabanından yüklenen kurlar: {self.exchange_rates}")
                 return True
         except Exception as e:

@@ -1,6 +1,4 @@
-/rust_qr/target
-Database/
-db.py.backup
+/target
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

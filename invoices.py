@@ -141,14 +141,22 @@ class InvoiceProcessor:
         Fatura verilerini işler, doğrular ve KDV/kur hesaplamalarını yapar.
         Decimal kullanarak yüksek hassasiyetle para hesaplamaları yapar.
         """
-        # Sadece toplam tutar zorunlu olsun, diğer alanlar boş kalabilir
-        toplam_tutar = self._to_decimal(invoice_data.get('toplam_tutar', 0))
+        # Toplam tutar için hem 'toplam_tutar' hem de 'toplam_tutar_tl' alanlarını kontrol et
+        toplam_tutar = self._to_decimal(
+            invoice_data.get('toplam_tutar') or 
+            invoice_data.get('toplam_tutar_tl') or 
+            0
+        )
         if toplam_tutar <= 0:
             logging.warning(f"Toplam tutar girilmemiş veya geçersiz: {invoice_data}")
             return None
         
         try:            
             processed = invoice_data.copy()
+            
+            # Toplam tutar alanını normalize et
+            if 'toplam_tutar' not in processed and 'toplam_tutar_tl' in processed:
+                processed['toplam_tutar'] = processed['toplam_tutar_tl']
             
             # Boş alanları olduğu gibi bırak
             processed['fatura_no'] = processed.get('fatura_no', '').strip()
@@ -170,15 +178,15 @@ class InvoiceProcessor:
             kdv_tutari_input = self._to_decimal(processed.get('kdv_tutari', 0)) 
             birim = processed.get('birim', 'TL')
             
-            logging.info(f"\n   🧾 FATURA İŞLEME BAŞLADI (KDV DAHİL SİSTEM - DECIMAL)")
-            logging.info(f"   📋 Giriş Verileri:")
-            logging.info(f"     - Girilen Tutar (KDV DAHİL): {toplam_tutar} {birim}")
-            logging.info(f"     - KDV Yüzdesi: {kdv_yuzdesi}%")
+            logging.debug(f"\n   🧾 FATURA İŞLEME BAŞLADI (KDV DAHİL SİSTEM - DECIMAL)")
+            logging.debug(f"   📋 Giriş Verileri:")
+            logging.debug(f"     - Girilen Tutar (KDV DAHİL): {toplam_tutar} {birim}")
+            logging.debug(f"     - KDV Yüzdesi: {kdv_yuzdesi}%")
             
             # KDV yüzdesi kontrolü
             if kdv_yuzdesi <= 0:
                 kdv_yuzdesi = self._to_decimal(self.backend.settings.get('kdv_yuzdesi', 20.0))
-                logging.info(f"   ⚙️ KDV yüzdesi girilmedi, varsayılan kullanılıyor: {kdv_yuzdesi}%")
+                logging.debug(f"   ⚙️ KDV yüzdesi girilmedi, varsayılan kullanılıyor: {kdv_yuzdesi}%")
             
             # Manuel kur girişi kontrolü - önce kontrol et
             manual_usd_rate = invoice_data.get('manual_usd_rate', None)
@@ -187,24 +195,24 @@ class InvoiceProcessor:
             if manual_usd_rate and manual_usd_rate > 0:
                 # Manuel USD kuru girilmiş (1 USD = ? TL formatında)
                 usd_to_tl = manual_usd_rate
-                logging.info(f"   💱 Manuel USD kuru kullanılıyor: 1 USD = {usd_to_tl} TL")
+                logging.debug(f"   💱 Manuel USD kuru kullanılıyor: 1 USD = {usd_to_tl} TL")
             else:
-                # TCMB kurunu kullan
+                # TCMB kurunu kullan (cache'den)
                 current_rates = self.backend.exchange_rates
                 usd_rate = current_rates.get('USD', 0)
                 usd_to_tl = (1 / usd_rate) if usd_rate > 0 else 0
-                logging.info(f"   💱 TCMB USD kuru kullanılıyor: 1 USD = {usd_to_tl} TL")
+                logging.debug(f"   💱 Cache'den USD kuru: 1 USD = {usd_to_tl} TL")
             
             if manual_eur_rate and manual_eur_rate > 0:
                 # Manuel EUR kuru girilmiş (1 EUR = ? TL formatında)
                 eur_to_tl = manual_eur_rate
-                logging.info(f"   💱 Manuel EUR kuru kullanılıyor: 1 EUR = {eur_to_tl} TL")
+                logging.debug(f"   💱 Manuel EUR kuru kullanılıyor: 1 EUR = {eur_to_tl} TL")
             else:
-                # TCMB kurunu kullan
+                # TCMB kurunu kullan (cache'den)
                 current_rates = self.backend.exchange_rates
                 eur_rate = current_rates.get('EUR', 0)
                 eur_to_tl = (1 / eur_rate) if eur_rate > 0 else 0
-                logging.info(f"   💱 TCMB EUR kuru kullanılıyor: 1 EUR = {eur_to_tl} TL")
+                logging.debug(f"   💱 Cache'den EUR kuru: 1 EUR = {eur_to_tl} TL")
 
             # KDV DAHİL SİSTEM - Tüm girilen tutarlar KDV dahildir
             # KDV hesaplaması her zaman TL üzerinden yapılır
@@ -241,13 +249,13 @@ class InvoiceProcessor:
                     matrah_tl = matrah_tl.quantize(Decimal('0.00001'))
                     kdv_tutari_tl = kdv_tutari_tl.quantize(Decimal('0.00001'))
                     
-                    logging.info(f"   ✅ KDV DAHİL HESAPLAMA (TL ÜZERİNDEN):")
-                    logging.info(f"     - Girilen Tutar: {toplam_tutar} {birim}")
-                    logging.info(f"     - Kur: {conversion_rate}")
-                    logging.info(f"     - TL Karşılığı: {toplam_tutar_tl_decimal} TL")
-                    logging.info(f"     - KDV Katsayısı: {kdv_katsayisi}")
-                    logging.info(f"     - Matrah (TL): {matrah_tl} TL")
-                    logging.info(f"     - KDV Tutarı (TL): {kdv_tutari_tl} TL")
+                    logging.debug(f"   ✅ KDV DAHİL HESAPLAMA (TL ÜZERİNDEN):")
+                    logging.debug(f"     - Girilen Tutar: {toplam_tutar} {birim}")
+                    logging.debug(f"     - Kur: {conversion_rate}")
+                    logging.debug(f"     - TL Karşılığı: {toplam_tutar_tl_decimal} TL")
+                    logging.debug(f"     - KDV Katsayısı: {kdv_katsayisi}")
+                    logging.debug(f"     - Matrah (TL): {matrah_tl} TL")
+                    logging.debug(f"     - KDV Tutarı (TL): {kdv_tutari_tl} TL")
                     
                 except Exception as calc_err:
                     logging.error(f"   ❌ Hesaplama hatası (Decimal): {calc_err}")
@@ -284,11 +292,11 @@ class InvoiceProcessor:
             processed['usd_rate'] = round(float(usd_to_tl), 5)
             processed['eur_rate'] = round(float(eur_to_tl), 5)
             
-            logging.info(f"   📊 SONUÇ (TL CİNSİNDEN):")
-            logging.info(f"     - Matrah: {matrah_tl:.2f} TL")
-            logging.info(f"     - KDV Tutarı: {kdv_tutari_tl:.2f} TL") 
-            logging.info(f"     - TOPLAM (KDV DAHİL): {toplam_kdv_dahil_tl:.2f} TL")
-            logging.info(f"   ✅ İşlem başarılı!\n")
+            logging.debug(f"   📊 SONUÇ (TL CİNSİNDEN):")
+            logging.debug(f"     - Matrah: {matrah_tl:.2f} TL")
+            logging.debug(f"     - KDV Tutarı: {kdv_tutari_tl:.2f} TL") 
+            logging.debug(f"     - TOPLAM (KDV DAHİL): {toplam_kdv_dahil_tl:.2f} TL")
+            logging.debug(f"   ✅ İşlem başarılı!\n")
             
             return processed
 
@@ -427,9 +435,9 @@ class InvoiceManager:
         
         elif operation == 'get':
             if invoice_type == 'outgoing':
-                return self.backend.db.get_all_gelir_invoices(limit=limit, offset=offset, order_by=order_by)
+                return self.backend.db.get_all_gelir_invoices(limit, offset)
             elif invoice_type == 'incoming':
-                return self.backend.db.get_all_gider_invoices(limit=limit, offset=offset, order_by=order_by)
+                return self.backend.db.get_all_gider_invoices(limit, offset)
             else:
                 return []
         
@@ -486,17 +494,17 @@ class InvoiceManager:
     def _add_history_record(self, operation_type, invoice_type, invoice_data=None, details=None):
         """Fatura işlemlerinde geçmiş kaydı ekler."""
         try:
-            invoice_date = None
-            firma = None
-            amount = None
-            
-            if invoice_data:
-                invoice_date = invoice_data.get('tarih')
-                firma = invoice_data.get('firma') or invoice_data.get('tur')
-                amount = invoice_data.get('toplam_tutar_tl') or invoice_data.get('miktar')
-            
             # İşlem tipine göre detay mesajı oluştur
             if not details:
+                firma = None
+                amount = None
+                invoice_date = None
+                
+                if invoice_data:
+                    invoice_date = invoice_data.get('tarih')
+                    firma = invoice_data.get('firma') or invoice_data.get('tur')
+                    amount = invoice_data.get('toplam_tutar_tl') or invoice_data.get('miktar')
+                
                 if operation_type == 'EKLEME':
                     details = f"{invoice_type.title()} fatura eklendi"
                 elif operation_type == 'GÜNCELLEME':
@@ -505,8 +513,18 @@ class InvoiceManager:
                     details = f"{invoice_type.title()} fatura silindi"
                 else:
                     details = f"{operation_type} işlemi"
+                
+                # Detaylı bilgi ekle
+                if firma:
+                    details += f" - Firma: {firma}"
+                if amount:
+                    details += f" - Tutar: {amount} TL"
+                if invoice_date:
+                    details += f" - Tarih: {invoice_date}"
             
-            self.backend.db.add_history_record(operation_type, invoice_type, invoice_date, firma, amount, details)
+            # Rust modülü sadece action ve details alıyor
+            action = f"{operation_type}_{invoice_type.upper()}"
+            self.backend.db.add_history_record(action, details)
             
         except Exception as e:
             logging.error(f"Geçmiş kaydı ekleme hatası: {e}")
@@ -529,84 +547,83 @@ class PeriodicIncomeCalculator:
         self.backend = backend
     
     def get_summary_data(self):
-        """Gelir, gider ve kar/zarar özetini hesaplar - 3 ayrı veritabanı ile."""
-        # Gelir toplamı (KDV dahil)
-        gelir_cursor = self.backend.db.gelir_conn.cursor()
-        gelir_cursor.execute("SELECT SUM(toplam_tutar_tl), SUM(kdv_tutari) FROM invoices")
-        gelir_row = gelir_cursor.fetchone()
-        total_revenue_kdv_dahil = gelir_row[0] or 0
-        total_revenue_kdv = gelir_row[1] or 0
-        total_revenue = total_revenue_kdv_dahil - total_revenue_kdv  # Matrah (KDV hariç)
-        
-        # Fatura giderleri toplamı (KDV dahil)
-        gider_cursor = self.backend.db.gider_conn.cursor()
-        gider_cursor.execute("SELECT SUM(toplam_tutar_tl), SUM(kdv_tutari) FROM invoices")
-        gider_row = gider_cursor.fetchone()
-        invoice_expenses_kdv_dahil = gider_row[0] or 0
-        invoice_expenses_kdv = gider_row[1] or 0
-        invoice_expenses = invoice_expenses_kdv_dahil - invoice_expenses_kdv  # Matrah (KDV hariç)
-        
-        # Genel giderler toplamı
-        genel_gider_cursor = self.backend.db.genel_gider_conn.cursor()
-        genel_gider_cursor.execute("SELECT SUM(miktar) FROM general_expenses")
-        general_expenses = genel_gider_cursor.fetchone()[0] or 0
-        
-        # Toplam gider
-        total_expense = invoice_expenses + general_expenses
-        
-        # Aylık veriler
-        monthly_income = [0] * 12
-        monthly_expenses = [0] * 12
-        current_year = datetime.now().year
-        
-        # Gelir aylık dağılım
-        gelir_cursor.execute("""
-            SELECT tarih, toplam_tutar_tl FROM invoices 
-            WHERE tarih LIKE ?
-        """, (f"%.{current_year}",))
-        
-        for row in gelir_cursor.fetchall():
-            try:
-                parts = row[0].split('.')
-                if len(parts) == 3:
-                    month = int(parts[1]) - 1
-                    monthly_income[month] += row[1]
-            except:
-                continue
-        
-        # Fatura giderleri aylık dağılım
-        gider_cursor.execute("""
-            SELECT tarih, toplam_tutar_tl FROM invoices 
-            WHERE tarih LIKE ?
-        """, (f"%.{current_year}",))
-        
-        for row in gider_cursor.fetchall():
-            try:
-                parts = row[0].split('.')
-                if len(parts) == 3:
-                    month = int(parts[1]) - 1
-                    monthly_expenses[month] += row[1]
-            except:
-                continue
-                
-        # Genel giderler aylık dağılım
-        genel_gider_cursor.execute("""
-            SELECT tarih, miktar FROM general_expenses 
-            WHERE tarih LIKE ?
-        """, (f"%.{current_year}",))
-        
-        for row in genel_gider_cursor.fetchall():
-            try:
-                parts = row[0].split('.')
-                if len(parts) == 3:
-                    month = int(parts[1]) - 1
-                    monthly_expenses[month] += row[1]
-            except:
-                continue
-        
-        active_income_months = sum(1 for income in monthly_income if income > 0)
-        total_income_this_year = sum(monthly_income)
-        monthly_average = total_income_this_year / active_income_months if active_income_months > 0 else 0
+        """Gelir, gider ve kar/zarar özetini hesaplar - Rust async DB ile."""
+        try:
+            # Tüm gelirleri al
+            gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
+            total_revenue_kdv_dahil = sum(inv.get('toplam_tutar_tl', 0) or 0 for inv in gelir_invoices)
+            total_revenue_kdv = sum(inv.get('kdv_tutari', 0) or 0 for inv in gelir_invoices)
+            total_revenue = total_revenue_kdv_dahil - total_revenue_kdv  # Matrah (KDV hariç)
+            
+            # Tüm giderleri al
+            gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
+            invoice_expenses_kdv_dahil = sum(inv.get('toplam_tutar_tl', 0) or 0 for inv in gider_invoices)
+            invoice_expenses_kdv = sum(inv.get('kdv_tutari', 0) or 0 for inv in gider_invoices)
+            invoice_expenses = invoice_expenses_kdv_dahil - invoice_expenses_kdv  # Matrah (KDV hariç)
+            
+            # Genel giderleri al (yıllık)
+            current_year = datetime.now().year
+            yearly_expenses = self.backend.db.get_yearly_expenses(current_year)
+            general_expenses = 0
+            if yearly_expenses:
+                months = ['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran',
+                         'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik']
+                general_expenses = sum(yearly_expenses.get(month, 0) or 0 for month in months)
+            
+            # Toplam gider
+            total_expense = invoice_expenses + general_expenses
+            
+            # Aylık veriler
+            monthly_income = [0] * 12
+            monthly_expenses = [0] * 12
+            
+            # Gelir aylık dağılım
+            for inv in gelir_invoices:
+                try:
+                    tarih = inv.get('tarih', '')
+                    if tarih:
+                        parts = tarih.split('.')
+                        if len(parts) == 3 and parts[2] == str(current_year):
+                            month = int(parts[1]) - 1
+                            if 0 <= month < 12:
+                                monthly_income[month] += inv.get('toplam_tutar_tl', 0) or 0
+                except:
+                    continue
+            
+            # Gider aylık dağılım (faturalar)
+            for inv in gider_invoices:
+                try:
+                    tarih = inv.get('tarih', '')
+                    if tarih:
+                        parts = tarih.split('.')
+                        if len(parts) == 3 and parts[2] == str(current_year):
+                            month = int(parts[1]) - 1
+                            if 0 <= month < 12:
+                                monthly_expenses[month] += inv.get('toplam_tutar_tl', 0) or 0
+                except:
+                    continue
+            
+            # Genel giderler aylık dağılım
+            if yearly_expenses:
+                months = ['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran',
+                         'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik']
+                for i, month in enumerate(months):
+                    monthly_expenses[i] += yearly_expenses.get(month, 0) or 0
+            
+            active_income_months = sum(1 for income in monthly_income if income > 0)
+            total_income_this_year = sum(monthly_income)
+            monthly_average = total_income_this_year / active_income_months if active_income_months > 0 else 0
+            
+        except Exception as e:
+            logging.error(f"Özet veri hesaplama hatası: {e}")
+            return {
+                'total_revenue': 0,
+                'total_expense': 0,
+                'net_profit': 0,
+                'monthly_income': [0] * 12,
+                'monthly_expenses': [0] * 12,
+                'monthly_average': 0
+            }
         
         net_profit = total_revenue - total_expense
 
@@ -621,86 +638,101 @@ class PeriodicIncomeCalculator:
         }
     
     def get_year_range(self):
-        """Fatura verilerinde bulunan tüm yılların listesini döndürür - 3 ayrı veritabanı ile."""
+        """Fatura verilerinde bulunan tüm yılların listesini döndürür - Rust async DB ile."""
         years_set = set()
         current_year = datetime.now().year
         
         years_set.add(str(current_year))
         
-        # Gelir veritabanından yılları al
-        gelir_invoices = self.backend.db.get_all_gelir_invoices()
-        for inv in gelir_invoices:
-            try:
-                if 'tarih' in inv and inv['tarih']:
-                    date_obj = datetime.strptime(inv['tarih'], "%d.%m.%Y")
-                    years_set.add(str(date_obj.year))
-            except (ValueError, KeyError):
-                continue
-        
-        # Gider veritabanından yılları al
-        gider_invoices = self.backend.db.get_all_gider_invoices()
-        for inv in gider_invoices:
-            try:
-                if 'tarih' in inv and inv['tarih']:
-                    date_obj = datetime.strptime(inv['tarih'], "%d.%m.%Y")
-                    years_set.add(str(date_obj.year))
-            except (ValueError, KeyError):
-                continue
-        
-        # Genel gider veritabanından yılları al
-        genel_gider_list = self.backend.db.get_all_genel_gider()
-        for gider in genel_gider_list:
-            try:
-                if 'tarih' in gider and gider['tarih']:
-                    date_obj = datetime.strptime(gider['tarih'], "%d.%m.%Y")
-                    years_set.add(str(date_obj.year))
-            except (ValueError, KeyError):
-                continue
+        try:
+            # Gelir veritabanından yılları al
+            gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
+            for inv in gelir_invoices:
+                try:
+                    if 'tarih' in inv and inv['tarih']:
+                        date_obj = datetime.strptime(inv['tarih'], "%d.%m.%Y")
+                        years_set.add(str(date_obj.year))
+                except (ValueError, KeyError):
+                    continue
+            
+            # Gider veritabanından yılları al
+            gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
+            for inv in gider_invoices:
+                try:
+                    if 'tarih' in inv and inv['tarih']:
+                        date_obj = datetime.strptime(inv['tarih'], "%d.%m.%Y")
+                        years_set.add(str(date_obj.year))
+                except (ValueError, KeyError):
+                    continue
+            
+            # Genel gider veritabanından yılları al
+            yearly_expenses_list = self.backend.db.get_all_yearly_expenses() or []
+            for expense_record in yearly_expenses_list:
+                try:
+                    if 'yil' in expense_record:
+                        years_set.add(str(expense_record['yil']))
+                except (ValueError, KeyError):
+                    continue
+        except Exception as e:
+            logging.error(f"Yıl aralığı alma hatası: {e}")
         
         return sorted(list(years_set), reverse=True)
     
     def get_calculations_for_year(self, year):
-        """Belirli bir yıl için aylık ve çeyrek dönem hesaplamaları - 3 ayrı veritabanı ile."""
+        """Belirli bir yıl için aylık ve çeyrek dönem hesaplamaları - Rust async DB ile."""
         # Vergi oranını güvenli şekilde float'a dönüştür
         tax_rate_raw = self.backend.settings.get('kurumlar_vergisi_yuzdesi', 22.0)
         tax_rate = float(tax_rate_raw) / 100.0
         
+        # Tüm faturaları al
+        gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
+        gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
+        yearly_expenses = self.backend.db.get_yearly_expenses(year)
+        
         monthly_results = []
+        months_tr = ['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran',
+                     'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik']
         
         for month in range(1, 13):
-            # Gelir hesapla - toplam_tutar_tl artık KDV dahil, kar için matrah hesaplayalım
-            gelir_cursor = self.backend.db.gelir_conn.cursor()
-            gelir_cursor.execute("""
-                SELECT SUM(toplam_tutar_tl), SUM(kdv_tutari) 
-                FROM invoices 
-                WHERE tarih LIKE ?
-            """, (f"%.{month:02d}.{year}",))
-            gelir_row = gelir_cursor.fetchone()
-            kesilen_kdv_dahil = gelir_row[0] or 0
-            kesilen_kdv = gelir_row[1] or 0
+            month_str = f"{month:02d}"
+            
+            # Gelir hesapla - toplam_tutar_tl KDV dahil, kar için matrah hesaplayalım
+            kesilen_kdv_dahil = 0
+            kesilen_kdv = 0
+            for inv in gelir_invoices:
+                try:
+                    tarih = inv.get('tarih', '')
+                    if tarih:
+                        parts = tarih.split('.')
+                        if len(parts) == 3 and parts[1] == month_str and parts[2] == str(year):
+                            kesilen_kdv_dahil += inv.get('toplam_tutar_tl', 0) or 0
+                            kesilen_kdv += inv.get('kdv_tutari', 0) or 0
+                except:
+                    continue
+            
             kesilen_matrah = kesilen_kdv_dahil - kesilen_kdv  # KDV dahil tutardan matrahı çıkar
             
             # Fatura giderleri hesapla
-            gider_cursor = self.backend.db.gider_conn.cursor()
-            gider_cursor.execute("""
-                SELECT SUM(toplam_tutar_tl), SUM(kdv_tutari) 
-                FROM invoices 
-                WHERE tarih LIKE ?
-            """, (f"%.{month:02d}.{year}",))
-            gider_row = gider_cursor.fetchone()
-            fatura_giderleri_kdv_dahil = gider_row[0] or 0
-            fatura_gider_kdv = gider_row[1] or 0
+            fatura_giderleri_kdv_dahil = 0
+            fatura_gider_kdv = 0
+            for inv in gider_invoices:
+                try:
+                    tarih = inv.get('tarih', '')
+                    if tarih:
+                        parts = tarih.split('.')
+                        if len(parts) == 3 and parts[1] == month_str and parts[2] == str(year):
+                            fatura_giderleri_kdv_dahil += inv.get('toplam_tutar_tl', 0) or 0
+                            fatura_gider_kdv += inv.get('kdv_tutari', 0) or 0
+                except:
+                    continue
+            
             fatura_giderleri_matrah = fatura_giderleri_kdv_dahil - fatura_gider_kdv
             
             # Genel giderleri hesapla
-            genel_gider_cursor = self.backend.db.genel_gider_conn.cursor()
-            genel_gider_cursor.execute("""
-                SELECT SUM(miktar) 
-                FROM general_expenses 
-                WHERE tarih LIKE ?
-            """, (f"%.{month:02d}.{year}",))
-            genel_gider_row = genel_gider_cursor.fetchone()
-            genel_giderler = genel_gider_row[0] or 0
+            genel_giderler = 0
+            if yearly_expenses:
+                month_key = months_tr[month - 1]
+                genel_giderler = yearly_expenses.get(month_key, 0) or 0
             
             # Toplam gider (matrah bazında)
             toplam_gider_matrah = fatura_giderleri_matrah + genel_giderler
@@ -736,37 +768,47 @@ class PeriodicIncomeCalculator:
         return monthly_results, quarterly_results
     
     def get_yearly_summary(self, year):
-        """Belirli bir yıl için yıllık özet - 3 ayrı veritabanı ile."""
+        """Belirli bir yıl için yıllık özet - Rust async DB ile."""
+        
+        # Tüm faturaları al
+        gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
+        gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
+        yearly_expenses = self.backend.db.get_yearly_expenses(year)
         
         # Gelir hesapla (KDV dahil tutardan matrahı çıkar)
-        gelir_cursor = self.backend.db.gelir_conn.cursor()
-        gelir_cursor.execute("""
-            SELECT SUM(toplam_tutar_tl), SUM(kdv_tutari) FROM invoices 
-            WHERE tarih LIKE ?
-        """, (f"%.{year}",))
-        gelir_row = gelir_cursor.fetchone()
-        gelir_kdv_dahil = gelir_row[0] or 0
-        gelir_kdv = gelir_row[1] or 0
+        gelir_kdv_dahil = 0
+        gelir_kdv = 0
+        for inv in gelir_invoices:
+            try:
+                tarih = inv.get('tarih', '')
+                if tarih and tarih.endswith(str(year)):
+                    gelir_kdv_dahil += inv.get('toplam_tutar_tl', 0) or 0
+                    gelir_kdv += inv.get('kdv_tutari', 0) or 0
+            except:
+                continue
+        
         gelir_matrah = gelir_kdv_dahil - gelir_kdv
         
         # Fatura giderleri hesapla (KDV dahil tutardan matrahı çıkar)
-        gider_cursor = self.backend.db.gider_conn.cursor()
-        gider_cursor.execute("""
-            SELECT SUM(toplam_tutar_tl), SUM(kdv_tutari) FROM invoices 
-            WHERE tarih LIKE ?
-        """, (f"%.{year}",))
-        gider_row = gider_cursor.fetchone()
-        fatura_giderleri_kdv_dahil = gider_row[0] or 0
-        fatura_giderleri_kdv = gider_row[1] or 0
+        fatura_giderleri_kdv_dahil = 0
+        fatura_giderleri_kdv = 0
+        for inv in gider_invoices:
+            try:
+                tarih = inv.get('tarih', '')
+                if tarih and tarih.endswith(str(year)):
+                    fatura_giderleri_kdv_dahil += inv.get('toplam_tutar_tl', 0) or 0
+                    fatura_giderleri_kdv += inv.get('kdv_tutari', 0) or 0
+            except:
+                continue
+        
         fatura_giderleri_matrah = fatura_giderleri_kdv_dahil - fatura_giderleri_kdv
         
         # Genel giderleri hesapla
-        genel_gider_cursor = self.backend.db.genel_gider_conn.cursor()
-        genel_gider_cursor.execute("""
-            SELECT SUM(miktar) FROM general_expenses 
-            WHERE tarih LIKE ?
-        """, (f"%.{year}",))
-        genel_giderler = genel_gider_cursor.fetchone()[0] or 0
+        genel_giderler = 0
+        if yearly_expenses:
+            months = ['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran',
+                     'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik']
+            genel_giderler = sum(yearly_expenses.get(month, 0) or 0 for month in months)
         
         # Toplam gider (matrah bazında)
         toplam_gider_matrah = fatura_giderleri_matrah + genel_giderler
