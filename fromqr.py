@@ -211,7 +211,7 @@ class OptimizedQRProcessor:
             return []
     
     def process_pdf(self, pdf_path):
-        """PDF işleme - Akıllı DPI ve Rust Raw Scan + Fallback"""
+        """PDF işleme - Bölgesel Tarama (ROI) + Akıllı Strateji"""
         try:
             # PDF'i tek seferde aç
             doc = fitz.open(pdf_path)
@@ -219,28 +219,62 @@ class OptimizedQRProcessor:
             
             # 1. Metin Çıkarma (Açık doc üzerinden - HIZLI)
             pdf_text = page.get_text()
-            text_len = len(pdf_text)
             
-            # 2. Kalite Analizi (Açık page üzerinden - HIZLI)
-            # Metin uzunluğunu göndererek tekrar parse edilmesini engelliyoruz
-            quality_info = self.analyze_pdf_quality(pdf_path, page=page, existing_text_len=text_len)
-            optimal_dpi = quality_info['dpi']
+            # Metin varlığına göre strateji belirle
+            is_likely_vector = len(pdf_text) > 50
             
-            # AŞAMA 1: Hesaplanan Optimal DPI ile dene (RUST)
-            result = self._try_pdf_with_dpi(page, optimal_dpi, "AKILLI")
-            if result:
-                doc.close()
-                # İstatistik güncelleme
-                if optimal_dpi <= 400: self.stats['smart_dpi_300'] += 1
-                else: self.stats['smart_dpi_600'] += 1
-                return result, pdf_text
+            # ROI (Region of Interest) - Üst %35 (QR genelde buradadır)
+            page_rect = page.rect
+            roi_rect = fitz.Rect(0, 0, page_rect.width, page_rect.height * 0.35)
             
-            # AŞAMA 2: Başarısız olursa Yüksek Kalite (Fallback) dene (RUST)
-            if optimal_dpi < 600:
-                result = self._try_pdf_with_dpi(page, 600, "FALLBACK")
+            if is_likely_vector:
+                # --- STRATEJİ A: VEKTÖR PDF (E-FATURA) ---
+                
+                # Adım 1: ROI Tarama (150 DPI) - ÇOK HIZLI
+                # Vektör PDF'lerde QR nettir, 150 DPI yeterlidir.
+                result = self._try_pdf_with_dpi(page, 150, "VEKTÖR-ROI-150", clip=roi_rect)
                 if result:
                     doc.close()
-                    self.stats['fallback_scan'] += 1
+                    self.stats['stage1_fast'] += 1
+                    return result, pdf_text
+                
+                # Adım 2: Tam Sayfa (300 DPI)
+                result = self._try_pdf_with_dpi(page, 300, "VEKTÖR-TAM-300")
+                if result:
+                    doc.close()
+                    self.stats['stage2_medium'] += 1
+                    return result, pdf_text
+                
+                # Adım 3: Yüksek Kalite (450 DPI)
+                result = self._try_pdf_with_dpi(page, 450, "VEKTÖR-YÜKSEK-450")
+                if result:
+                    doc.close()
+                    self.stats['stage3_deep'] += 1
+                    return result, pdf_text
+            
+            else:
+                # --- STRATEJİ B: TARANMIŞ PDF (RESİM) ---
+                
+                # Adım 1: ROI Tarama (250 DPI)
+                # Taranmış belgelerde 500 DPI çok yavaştır, 250 ile başla.
+                result = self._try_pdf_with_dpi(page, 250, "TARAMA-ROI-250", clip=roi_rect)
+                if result:
+                    doc.close()
+                    self.stats['stage2_medium'] += 1
+                    return result, pdf_text
+                
+                # Adım 2: Tam Sayfa (350 DPI)
+                result = self._try_pdf_with_dpi(page, 350, "TARAMA-TAM-350")
+                if result:
+                    doc.close()
+                    self.stats['stage2_medium'] += 1
+                    return result, pdf_text
+                
+                # Adım 3: Ultra Yüksek Kalite (600 DPI)
+                result = self._try_pdf_with_dpi(page, 600, "TARAMA-ULTRA-600")
+                if result:
+                    doc.close()
+                    self.stats['stage3_deep'] += 1
                     return result, pdf_text
             
             doc.close()
@@ -254,7 +288,7 @@ class OptimizedQRProcessor:
     
     # OptimizedQRProcessor sınıfının içine, diğer metodların yanına:
 
-    def _try_pdf_with_dpi(self, page, dpi, stage_name):
+    def _try_pdf_with_dpi(self, page, dpi, stage_name, clip=None):
         """
         PDF sayfasını render eder ve HAM (RAW) veriyi Rust'a gönderir.
         EN HIZLI YÖNTEM BUDUR.
@@ -269,7 +303,8 @@ class OptimizedQRProcessor:
             
             # 2. ÖNEMLİ: colorspace=fitz.csGRAY ile render al (Siyah beyaz - 1 byte/pixel)
             # alpha=False şeffaflığı kapatır.
-            pix = page.get_pixmap(matrix=mat, colorspace=fitz.csGRAY, alpha=False)
+            # clip parametresi ile sadece belirli bölgeyi render et
+            pix = page.get_pixmap(matrix=mat, colorspace=fitz.csGRAY, alpha=False, clip=clip)
             
             # 3. ÖNEMLİ: .tobytes("png") YERİNE .samples KULLAN
             # Bu işlem 0 saniye sürer çünkü sıkıştırma yapmaz, direkt hafızayı okur.
@@ -1469,44 +1504,81 @@ class OptimizedQRProcessor:
             logging.warning("⚠️ İşlenebilir dosya bulunamadı")
             return []
         
+        # Hızlı başlangıç bildirimi
+        if status_callback:
+            status_callback(f"🚀 {len(file_paths)} dosya işlenmeye hazırlanıyor...", 1)
         
         results = []
         completed_count = 0
         start_time = time.time()
         
-        # Sıralı işleme (Tek tek)
-        for file_path in file_paths:
-            try:
-                # Dosyayı işle
-                result = self.process_file(file_path)
-                results.append(result)
+        # Paralel İşleme (ThreadPoolExecutor)
+        # imports.py'den ThreadPoolExecutor ve as_completed geliyor
+        if CONCURRENT_AVAILABLE:
+            with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Future -> File Path mapping
+                future_to_file = {executor.submit(self.process_file, fp): fp for fp in file_paths}
                 
-                completed_count += 1
-                
-                # İlerleme bildirimi - Her dosyada güncelle
-                if status_callback:
+                for future in as_completed(future_to_file):
+                    file_path = future_to_file[future]
                     try:
-                        progress = int((completed_count / len(file_paths)) * 95)
-                        elapsed = time.time() - start_time
-                        
-                        # Yüzdelik gösterim ekle
-                        msg = f"İşleniyor: %{progress} ({completed_count}/{len(file_paths)})"
-                        
-                        if not status_callback(msg, progress):
-                            # İptal edildi
-                            logging.warning("⚠️ Kullanıcı işlemi iptal etti")
-                            break
-                    except Exception:
-                        pass
-                        
-            except Exception as e:
-                logging.error(f"❌ Dosya işleme hatası ({os.path.basename(file_path)}): {e}")
-                results.append({
-                    'dosya_adi': os.path.basename(file_path),
-                    'durum': 'HATA',
-                    'json_data': {},
-                    'error': str(e)
-                })
+                        result = future.result()
+                        results.append(result)
+                    except Exception as exc:
+                        logging.error(f"❌ Dosya işleme hatası ({os.path.basename(file_path)}): {exc}")
+                        results.append({
+                            'dosya_adi': os.path.basename(file_path),
+                            'durum': 'HATA',
+                            'json_data': {},
+                            'error': str(exc)
+                        })
+                    
+                    completed_count += 1
+                    
+                    # İlerleme bildirimi
+                    if status_callback:
+                        try:
+                            progress = int((completed_count / len(file_paths)) * 95)
+                            msg = f"İşleniyor: %{progress} ({completed_count}/{len(file_paths)})"
+                            if not status_callback(msg, progress):
+                                executor.shutdown(wait=False, cancel_futures=True)
+                                break
+                        except Exception:
+                            pass
+        else:
+            # Fallback: Sıralı işleme
+            for file_path in file_paths:
+                try:
+                    # Dosyayı işle
+                    result = self.process_file(file_path)
+                    results.append(result)
+                    
+                    completed_count += 1
+                    
+                    # İlerleme bildirimi - Her dosyada güncelle
+                    if status_callback:
+                        try:
+                            progress = int((completed_count / len(file_paths)) * 95)
+                            elapsed = time.time() - start_time
+                            
+                            # Yüzdelik gösterim ekle
+                            msg = f"İşleniyor: %{progress} ({completed_count}/{len(file_paths)})"
+                            
+                            if not status_callback(msg, progress):
+                                # İptal edildi
+                                logging.warning("⚠️ Kullanıcı işlemi iptal etti")
+                                break
+                        except Exception:
+                            pass
+                            
+                except Exception as e:
+                    logging.error(f"❌ Dosya işleme hatası ({os.path.basename(file_path)}): {e}")
+                    results.append({
+                        'dosya_adi': os.path.basename(file_path),
+                        'durum': 'HATA',
+                        'json_data': {},
+                        'error': str(e)
+                    })
         
         total_time = time.time() - start_time
         success_count = len([r for r in results if r.get('durum') == 'BAŞARILI'])

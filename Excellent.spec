@@ -6,7 +6,9 @@ a = Analysis(
     pathex=[],
     binaries=[
         ('.venv\\Lib\\site-packages\\pyzbar\\libiconv.dll', 'pyzbar'), 
-        ('.venv\\Lib\\site-packages\\pyzbar\\libzbar-64.dll', 'pyzbar')
+        ('.venv\\Lib\\site-packages\\pyzbar\\libzbar-64.dll', 'pyzbar'),
+        ('rust_db\\rust_db\\rust_db.cp312-win_amd64.pyd', '.'),
+        ('rust_qr\\rust_qr_backend\\rust_qr_backend.cp312-win_amd64.pyd', '.')
     ],
     datas=[
         ('fonts', 'fonts'), 
@@ -21,16 +23,13 @@ a = Analysis(
         'invoices',
         'imports',
         'backend',
-        'db',
         'backup',
-        'rust_qr_backend',
         'pyzbar',
         'pyzbar.pyzbar',
         'pyzbar.pyzbar_error',
         'PIL',
         'PIL.Image',
         'flet',
-        'flet_core',
         'xlsxwriter',
         'reportlab',
         'reportlab.lib',
@@ -48,12 +47,15 @@ a = Analysis(
         'shutil',
         'logging',
         'threading',
-        'concurrent.futures'
+        'concurrent.futures',
+        'fitz',
+        'requests',
+        'xml.etree.ElementTree'
     ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['rust_db', 'rust_qr_backend'],
     noarchive=False,
     optimize=0,
 )

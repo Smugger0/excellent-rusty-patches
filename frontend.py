@@ -2529,14 +2529,14 @@ def main(page: ft.Page):
                         def process_in_thread(selected_type):
                             try:
                                 # Dialogun render edilmesi için kısa bir bekleme
-                                time.sleep(0.5)
+                                time.sleep(0.1)
                                 
                                 start_time = time.time()
                                 
                                 # QR dosyalarını oku
                                 results = backend_instance.process_qr_files_in_folder(
                                     folder_path,
-                                    max_workers=6,
+                                    max_workers=8,
                                     status_callback=status_callback
                                 )
                                 
@@ -2631,10 +2631,18 @@ def main(page: ft.Page):
                             )
                         )
                         
+                        # Son güncelleme zamanını takip et (Throttle)
+                        last_update_time = [0]
+                        
                         def status_callback(message, progress):
-                            progress_text.value = message
-                            progress_bar.value = progress / 100
-                            page.update()
+                            current_time = time.time()
+                            # Sadece %5'lik değişimlerde veya 0.2 saniyede bir güncelle
+                            # Veya işlem bittiğinde/başladığında (progress 0 veya 100)
+                            if progress == 0 or progress >= 95 or (current_time - last_update_time[0] > 0.2):
+                                progress_text.value = message
+                                progress_bar.value = progress / 100
+                                page.update()
+                                last_update_time[0] = current_time
                             return True
 
                         # Fatura tipi seçme dialogu callback'i

@@ -3,7 +3,16 @@
 
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
-import rust_db  # Async Rust database module
+try:
+    import rust_db
+except ImportError:
+    import sys
+    # If running from source or if the module is named differently
+    try:
+        from rust_db import rust_db
+    except ImportError:
+        pass
+
 from invoices import InvoiceProcessor, InvoiceManager, PeriodicIncomeCalculator
 
 
@@ -31,7 +40,15 @@ class Backend:
         self.on_status_updated = None  # Frontend tarafından atanacak
         
         # Rust async database initialization
-        self.db = rust_db.Database()
+        try:
+            self.db = rust_db.Database()
+        except AttributeError:
+            # Fallback if rust_db is a package containing the module
+            if hasattr(rust_db, 'rust_db') and hasattr(rust_db.rust_db, 'Database'):
+                self.db = rust_db.rust_db.Database()
+            else:
+                raise ImportError("Could not find Database class in rust_db module")
+
         self.db.init_connections()
         self.db.create_tables()
         
@@ -536,15 +553,10 @@ class Backend:
     def fetch_bulk_historical_rates(self, date_list):
         """
         Birden fazla tarih için paralel olarak döviz kurlarını çeker.
-        Her benzersiz tarih için sadece bir kez TCMB'ye istek gönderilir.
-        
-        Args:
-            date_list: 'DD.MM.YYYY' formatında tarih listesi
-            
-        Returns:
-            dict: {date_str: {'USD': rate, 'EUR': rate}}
+        Önce yerel veritabanını (cache) kontrol eder, yoksa TCMB'den çeker.
         """
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        import sqlite3
         
         if not date_list:
             return {}
@@ -552,18 +564,71 @@ class Backend:
         # Benzersiz tarihleri al
         unique_dates = list(set(date_list))
         rates_cache = {}
+        dates_to_fetch = []
         
-        def fetch_single_rate(date_str):
+        # 1. Önce veritabanından (cache) kontrol et
+        try:
+            # rust_db WAL modunda olduğu için okuma çakışması olmaz
+            conn = sqlite3.connect('Database/settings.db')
+            cursor = conn.cursor()
+            
+            for date_str in unique_dates:
+                try:
+                    # Tarihi YYYY-MM-DD formatına çevir (DB formatı)
+                    dt = datetime.strptime(date_str, "%d.%m.%Y")
+                    db_date = dt.strftime("%Y-%m-%d")
+                    
+                    cursor.execute("SELECT usd_rate, eur_rate FROM exchange_rates WHERE date = ?", (db_date,))
+                    row = cursor.fetchone()
+                    
+                    if row:
+                        rates_cache[date_str] = {'USD': row[0], 'EUR': row[1]}
+                    else:
+                        dates_to_fetch.append(date_str)
+                except Exception:
+                    dates_to_fetch.append(date_str)
+            
+            conn.close()
+        except Exception as e:
+            logging.error(f"Cache okuma hatası: {e}")
+            dates_to_fetch = unique_dates
+
+        if not dates_to_fetch:
+            return rates_cache
+            
+        logging.info(f"🌍 {len(dates_to_fetch)} tarih için TCMB'den kur çekilecek...")
+
+        # 2. Eksik olanları TCMB'den çek ve kaydet
+        def fetch_and_save(date_str):
             try:
                 rates = self.fetch_historical_rates(date_str)
-                return (date_str, rates)
+                if rates:
+                    # Veritabanına kaydet (Cache)
+                    try:
+                        dt = datetime.strptime(date_str, "%d.%m.%Y")
+                        db_date = dt.strftime("%Y-%m-%d")
+                        
+                        # Her thread kendi bağlantısını açmalı
+                        t_conn = sqlite3.connect('Database/settings.db')
+                        t_cursor = t_conn.cursor()
+                        t_cursor.execute(
+                            "INSERT OR REPLACE INTO exchange_rates (date, usd_rate, eur_rate) VALUES (?, ?, ?)",
+                            (db_date, rates['USD'], rates['EUR'])
+                        )
+                        t_conn.commit()
+                        t_conn.close()
+                    except Exception as db_err:
+                        logging.error(f"Kur kaydetme hatası: {db_err}")
+                    
+                    return (date_str, rates)
+                return (date_str, None)
             except Exception as e:
                 logging.error(f"Kur çekme hatası ({date_str}): {e}")
                 return (date_str, None)
         
         # Paralel olarak kur bilgilerini çek
         with ThreadPoolExecutor(max_workers=10) as executor:
-            futures = {executor.submit(fetch_single_rate, date): date for date in unique_dates}
+            futures = {executor.submit(fetch_and_save, date): date for date in dates_to_fetch}
             
             for future in as_completed(futures):
                 date_str, rates = future.result()

@@ -40,74 +40,75 @@ fn crop_luma_raw(data: &[u8], width: u32, x: u32, y: u32, w: u32, h: u32) -> Vec
 
 /// Ham Luma (Gri Tonlama) verisini alıp QR arar (Performans için)
 #[pyfunction]
-fn scan_raw_luma(data: &[u8], width: u32, height: u32) -> PyResult<Option<String>> {
-    // --- AŞAMA 1: Tam Resim (Raw Scan) ---
-    // En hızlı ve güvenilir yöntem. Önce bunu deniyoruz.
-    if let Some(qr) = scan_helper_raw(width, height, data.to_vec()) {
-         return Ok(Some(qr));
-    }
-
-    // --- AŞAMA 2: Sağ Üst Köşe + Kontrast (Fallback) ---
-    // Eğer tam resimde bulunamadıysa, muhtemelen kontrast sorunu vardır.
-    // Sadece sağ üst köşeyi alıp kontrast uyguluyoruz. Bu işlem tam resme göre çok daha hafiftir.
-    let crop_x = (width as f32 * 0.60) as u32;
-    let crop_y = 0;
-    let crop_w = width - crop_x;
-    let crop_h = (height as f32 * 0.40) as u32;
-
-    // Sadece bu bölgeyi kopyala
-    let cropped_data = crop_luma_raw(data, width, crop_x, crop_y, crop_w, crop_h);
+fn scan_raw_luma(py: Python, data: &[u8], width: u32, height: u32) -> PyResult<Option<String>> {
+    let data_vec = data.to_vec();
     
-    // ImageBuffer oluştur ve kontrast uygula
-    if let Some(img_buffer) = image::ImageBuffer::<image::Luma<u8>, _>::from_raw(crop_w, crop_h, cropped_data) {
-         let mut gray_img = image::DynamicImage::ImageLuma8(img_buffer).to_luma8();
-         image::imageops::contrast(&mut gray_img, 20.0); // Kontrast artır
-         
-         if let Some(qr) = scan_helper_raw(crop_w, crop_h, gray_img.into_vec()) {
+    py.allow_threads(move || {
+        // --- AŞAMA 1: Tam Resim (Raw Scan) ---
+        if let Some(qr) = scan_helper_raw(width, height, data_vec.clone()) {
              return Ok(Some(qr));
-         }
-    }
+        }
 
-    Ok(None)
+        // --- AŞAMA 2: Sağ Üst Köşe + Kontrast (Fallback) ---
+        let crop_x = (width as f32 * 0.60) as u32;
+        let crop_y = 0;
+        let crop_w = width - crop_x;
+        let crop_h = (height as f32 * 0.40) as u32;
+
+        let cropped_data = crop_luma_raw(&data_vec, width, crop_x, crop_y, crop_w, crop_h);
+        
+        if let Some(img_buffer) = image::ImageBuffer::<image::Luma<u8>, _>::from_raw(crop_w, crop_h, cropped_data) {
+             let mut gray_img = image::DynamicImage::ImageLuma8(img_buffer).to_luma8();
+             image::imageops::contrast(&mut gray_img, 20.0);
+             
+             if let Some(qr) = scan_helper_raw(crop_w, crop_h, gray_img.into_vec()) {
+                 return Ok(Some(qr));
+             }
+        }
+
+        Ok(None)
+    })
 }
 
 /// Görüntü baytlarını (bytes) alır ve QR arar
 #[pyfunction]
-fn scan_image_bytes(data: &[u8]) -> PyResult<Option<String>> {
-    // 1. Görüntüyü yükle (PNG, JPG vb. formatını otomatik algılar)
-    let img = match image::load_from_memory(data) {
-        Ok(i) => i,
-        Err(_) => return Ok(None), // Görüntü bozuksa None dön
-    };
-
-    // --- AŞAMA 1: Hızlı Tarama (Tam Resim) ---
-    if let Some(qr) = scan_helper(&img) {
-        return Ok(Some(qr));
-    }
-
-    // --- AŞAMA 2: Sağ Üst Köşe ---
-    let (w, h) = img.dimensions();
-    let crop_x = (w as f32 * 0.60) as u32;
-    let crop_w = w - crop_x;
-    let crop_h = (h as f32 * 0.40) as u32;
-
-    let cropped_img = img.crop_imm(crop_x, 0, crop_w, crop_h);
-    if let Some(qr) = scan_helper(&cropped_img) {
-        return Ok(Some(qr));
-    }
-
-    // --- AŞAMA 3: Derin Tarama (Kontrast Artırma) ---
-    let mut gray_img = img.to_luma8();
+fn scan_image_bytes(py: Python, data: &[u8]) -> PyResult<Option<String>> {
+    let data_vec = data.to_vec();
     
-    // Kontrast germe işlemi
-    image::imageops::contrast(&mut gray_img, 20.0);
-    
-    let enhanced_img = DynamicImage::ImageLuma8(gray_img);
-    if let Some(qr) = scan_helper(&enhanced_img) {
-        return Ok(Some(qr));
-    }
+    py.allow_threads(move || {
+        let img = match image::load_from_memory(&data_vec) {
+            Ok(i) => i,
+            Err(_) => return Ok(None),
+        };
 
-    Ok(None)
+        // --- AŞAMA 1: Hızlı Tarama (Tam Resim) ---
+        if let Some(qr) = scan_helper(&img) {
+            return Ok(Some(qr));
+        }
+
+        // --- AŞAMA 2: Sağ Üst Köşe ---
+        let (w, h) = img.dimensions();
+        let crop_x = (w as f32 * 0.60) as u32;
+        let crop_w = w - crop_x;
+        let crop_h = (h as f32 * 0.40) as u32;
+
+        let cropped_img = img.crop_imm(crop_x, 0, crop_w, crop_h);
+        if let Some(qr) = scan_helper(&cropped_img) {
+            return Ok(Some(qr));
+        }
+
+        // --- AŞAMA 3: Derin Tarama (Kontrast Artırma) ---
+        let mut gray_img = img.to_luma8();
+        
+        image::imageops::contrast(&mut gray_img, 20.0);
+        
+        let enhanced_img = DynamicImage::ImageLuma8(gray_img);
+        if let Some(qr) = scan_helper(&enhanced_img) {
+            return Ok(Some(qr));
+        }
+
+        Ok(None)
+    })
 }
 
 /// JSON Temizleme Fonksiyonu

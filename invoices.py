@@ -447,12 +447,9 @@ class InvoiceManager:
         elif operation == 'get':
             if invoice_type == 'outgoing':
                 # Rust tarafı limit, offset, order_by parametrelerini opsiyonel olarak bekliyor
-                # Ancak Python'dan çağırırken None olarak geçmek gerekebilir
-                # FIX: Mevcut rust_db sürümünde order_by parametresi yok
-                return self.backend.db.get_all_gelir_invoices(limit, offset)
+                return self.backend.db.get_all_gelir_invoices(limit, offset, order_by)
             elif invoice_type == 'incoming':
-                # FIX: Mevcut rust_db sürümünde order_by parametresi yok
-                return self.backend.db.get_all_gider_invoices(limit, offset)
+                return self.backend.db.get_all_gider_invoices(limit, offset, order_by)
             else:
                 return []
         
