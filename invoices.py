@@ -446,9 +446,13 @@ class InvoiceManager:
         
         elif operation == 'get':
             if invoice_type == 'outgoing':
-                return self.backend.db.get_all_gelir_invoices(limit, offset, order_by)
+                # Rust tarafı limit, offset, order_by parametrelerini opsiyonel olarak bekliyor
+                # Ancak Python'dan çağırırken None olarak geçmek gerekebilir
+                # FIX: Mevcut rust_db sürümünde order_by parametresi yok
+                return self.backend.db.get_all_gelir_invoices(limit, offset)
             elif invoice_type == 'incoming':
-                return self.backend.db.get_all_gider_invoices(limit, offset, order_by)
+                # FIX: Mevcut rust_db sürümünde order_by parametresi yok
+                return self.backend.db.get_all_gider_invoices(limit, offset)
             else:
                 return []
         
@@ -561,13 +565,13 @@ class PeriodicIncomeCalculator:
         """Gelir, gider ve kar/zarar özetini hesaplar - Rust async DB ile."""
         try:
             # Tüm gelirleri al
-            gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None, None) or []
+            gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
             total_revenue_kdv_dahil = sum(inv.get('toplam_tutar_tl', 0) or 0 for inv in gelir_invoices)
             total_revenue_kdv = sum(inv.get('kdv_tutari', 0) or 0 for inv in gelir_invoices)
             total_revenue = total_revenue_kdv_dahil - total_revenue_kdv  # Matrah (KDV hariç)
             
             # Tüm giderleri al
-            gider_invoices = self.backend.db.get_all_gider_invoices(None, None, None) or []
+            gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
             invoice_expenses_kdv_dahil = sum(inv.get('toplam_tutar_tl', 0) or 0 for inv in gider_invoices)
             invoice_expenses_kdv = sum(inv.get('kdv_tutari', 0) or 0 for inv in gider_invoices)
             invoice_expenses = invoice_expenses_kdv_dahil - invoice_expenses_kdv  # Matrah (KDV hariç)
@@ -657,7 +661,7 @@ class PeriodicIncomeCalculator:
         
         try:
             # Gelir veritabanından yılları al
-            gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None, None) or []
+            gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
             for inv in gelir_invoices:
                 try:
                     if 'tarih' in inv and inv['tarih']:
@@ -667,7 +671,7 @@ class PeriodicIncomeCalculator:
                     continue
             
             # Gider veritabanından yılları al
-            gider_invoices = self.backend.db.get_all_gider_invoices(None, None, None) or []
+            gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
             for inv in gider_invoices:
                 try:
                     if 'tarih' in inv and inv['tarih']:
@@ -696,8 +700,8 @@ class PeriodicIncomeCalculator:
         tax_rate = float(tax_rate_raw) / 100.0
         
         # Tüm faturaları al
-        gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None, None) or []
-        gider_invoices = self.backend.db.get_all_gider_invoices(None, None, None) or []
+        gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
+        gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
         yearly_expenses = self.backend.db.get_yearly_expenses(year)
         
         monthly_results = []
@@ -782,8 +786,8 @@ class PeriodicIncomeCalculator:
         """Belirli bir yıl için yıllık özet - Rust async DB ile."""
         
         # Tüm faturaları al
-        gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None, None) or []
-        gider_invoices = self.backend.db.get_all_gider_invoices(None, None, None) or []
+        gelir_invoices = self.backend.db.get_all_gelir_invoices(None, None) or []
+        gider_invoices = self.backend.db.get_all_gider_invoices(None, None) or []
         yearly_expenses = self.backend.db.get_yearly_expenses(year)
         
         # Gelir hesapla (KDV dahil tutardan matrahı çıkar)
