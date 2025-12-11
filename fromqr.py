@@ -25,6 +25,9 @@ except ImportError:
 # -----------------------------
 
 
+# ============================================================================
+# OPTİMİZE EDİLMİŞ QR İŞLEMCİSİ
+# ============================================================================
 class OptimizedQRProcessor:
     """
     Performans ve doğruluk odaklı QR işleme sınıfı.
@@ -48,6 +51,9 @@ class OptimizedQRProcessor:
         # Dosya analiz önbelleği
         self.file_quality_cache = {}
         
+    # ------------------------------------------------------------------------
+    # RUST ENTEGRASYONU
+    # ------------------------------------------------------------------------
     def _scan_raw_with_rust(self, raw_data, width, height):
         """
         Ham piksel verisini (Grayscale) doğrudan Rust backend'e gönderir.
@@ -71,6 +77,9 @@ class OptimizedQRProcessor:
         
         return None
     
+    # ------------------------------------------------------------------------
+    # DOSYA ADI ANALİZİ
+    # ------------------------------------------------------------------------
     def _extract_fatura_no_from_filename(self, filename):
         """
         Dosya adından CR ile başlayan fatura numarasını çıkar.
@@ -96,6 +105,9 @@ class OptimizedQRProcessor:
         
         return None
     
+    # ------------------------------------------------------------------------
+    # PDF ANALİZİ
+    # ------------------------------------------------------------------------
     def analyze_pdf_quality(self, pdf_path, page=None, existing_text_len=None):
         """PDF kalitesini analiz et ve optimal DPI'yi belirle"""
         # Cache kontrolü

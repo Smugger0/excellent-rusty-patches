@@ -19,6 +19,9 @@ except ImportError:
 from invoices import InvoiceProcessor, InvoiceManager, PeriodicIncomeCalculator
 
 
+# ============================================================================
+# BACKEND SINIFI
+# ============================================================================
 class Backend:
     """
     Uygulamanın ana omurgası.
@@ -39,6 +42,9 @@ class Backend:
                 except Exception as e:
                     pass
 
+    # ------------------------------------------------------------------------
+    # BAŞLATMA VE AYARLAR
+    # ------------------------------------------------------------------------
     def __init__(self):
         """
         Backend servislerini başlatır:
@@ -95,6 +101,9 @@ class Backend:
         # Başlangıçta kurları güncelle
         self.update_exchange_rates()
 
+    # ------------------------------------------------------------------------
+    # QR MODÜLÜ (LAZY LOADING)
+    # ------------------------------------------------------------------------
     @property
     def qr_integrator(self):
         """QR modülünü ihtiyaç anında yükler (Lazy Loading)."""
@@ -104,6 +113,9 @@ class Backend:
             logging.info("✅ QR Entegratörü başlatıldı")
         return self._qr_integrator
     
+    # ------------------------------------------------------------------------
+    # ZAMANLAYICILAR
+    # ------------------------------------------------------------------------
     def start_timers(self):
         """
         Uygulama döngüsü başladıktan sonra çağrılacak zamanlayıcıları başlatır.
@@ -122,6 +134,9 @@ class Backend:
         self.rate_update_timer.start()
         
 
+    # ------------------------------------------------------------------------
+    # DÖVİZ KURU İŞLEMLERİ
+    # ------------------------------------------------------------------------
     def update_exchange_rates(self, force_refresh=False):
         """Döviz kurlarını TCMB'den çeker, başarısız olursa önceki günün kurlarını kullanır.
         

@@ -8,6 +8,9 @@ ReportLab kütüphanesini kullanarak profesyonel görünümlü raporlar oluştur
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
 
+# ============================================================================
+# FATURA PDF DIŞA AKTARICI
+# ============================================================================
 class InvoicePDFExporter:
     """
     Fatura listelerini PDF'e dönüştüren ve raporlayan sınıf.
@@ -21,6 +24,9 @@ class InvoicePDFExporter:
         self._register_fonts()
         self._setup_custom_styles()
     
+    # ------------------------------------------------------------------------
+    # FONT KAYDI
+    # ------------------------------------------------------------------------
     def _register_fonts(self):
         """
         Türkçe karakterler için gerekli fontları sisteme kaydeder.
@@ -52,6 +58,9 @@ class InvoicePDFExporter:
             # Font yüklenemezse varsayılan fontlar kullanılır
             pass
     
+    # ------------------------------------------------------------------------
+    # STİL AYARLARI
+    # ------------------------------------------------------------------------
     def _setup_custom_styles(self):
         """
         Rapor için özel PDF stillerini (başlık, tablo, metin) oluşturur.

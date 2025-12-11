@@ -11,7 +11,7 @@ from imports import *
 
 
 # ============================================================================
-# FATURA İŞLEME SINIFI (Invoice Processor Class)
+# FATURA İŞLEME SINIFI
 # ============================================================================
 class InvoiceProcessor:
     """
@@ -28,6 +28,10 @@ class InvoiceProcessor:
         """
         self.backend = backend
     
+    # ------------------------------------------------------------------------
+    # YARDIMCI METOTLAR
+    # ------------------------------------------------------------------------
+
     def _to_decimal(self, value):
         """
         Finansal hesaplamalar için güvenli Decimal dönüşümü yapar.
@@ -152,6 +156,10 @@ class InvoiceProcessor:
         
         # Geçersiz tarih ise bugünün tarihini döndür
         return datetime.now().strftime("%d.%m.%Y")
+
+    # ------------------------------------------------------------------------
+    # ANA İŞLEM METOTLARI
+    # ------------------------------------------------------------------------
 
     def process_invoice_data(self, invoice_data):
         """
@@ -371,7 +379,7 @@ class InvoiceProcessor:
 
 
 # ============================================================================
-# FATURA YÖNETİM SINIFI (Invoice Manager Class)
+# FATURA YÖNETİM SINIFI
 # ============================================================================
 class InvoiceManager:
     """Fatura operasyonlarını yöneten sınıf."""

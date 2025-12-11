@@ -2,6 +2,10 @@ import os
 import zipfile
 import datetime
 
+# ============================================================================
+# YEREL YEDEKLEME YÖNETİCİSİ
+# ============================================================================
+
 class LocalBackupManager:
     def __init__(self, database_folder='Database'):
         """

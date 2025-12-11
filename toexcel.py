@@ -8,6 +8,9 @@ Pandas ve XlsxWriter kullanarak formatlı raporlar oluşturur.
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
 
+# ============================================================================
+# FATURA EXCEL DIŞA AKTARICI
+# ============================================================================
 class InvoiceExcelExporter:
     """
     Fatura listelerini Excel'e dönüştüren ve raporlayan sınıf.
@@ -20,6 +23,9 @@ class InvoiceExcelExporter:
         # if not os.path.exists(self.excel_folder):
         #     os.makedirs(self.excel_folder)
     
+    # ------------------------------------------------------------------------
+    # SÜTUN GENİŞLİĞİ AYARLAMA
+    # ------------------------------------------------------------------------
     def _auto_adjust_column_widths(self, writer, sheet_name, df):
         """
         Excel sütun genişliklerini içeriğe göre otomatik ayarlar.
@@ -93,6 +99,9 @@ class InvoiceExcelExporter:
         except Exception as e:
             logging.error(f"Sütun genişlik ayarlama hatası: {e}")
     
+    # ------------------------------------------------------------------------
+    # EXCEL DIŞA AKTARMA
+    # ------------------------------------------------------------------------
     def export_to_excel(self, file_path, sheets_data):
         """
         Verilen verileri bir Excel dosyasına aktarır ve sütun genişliklerini otomatik ayarlar

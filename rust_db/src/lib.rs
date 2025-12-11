@@ -11,7 +11,11 @@ use std::str::FromStr;
 use std::fs;
 use std::path::Path;
 
-// Helper functions for date conversion
+// ============================================================================
+// YARDIMCI FONKSİYONLAR
+// ============================================================================
+
+// Tarih dönüşümü için yardımcı fonksiyonlar
 fn to_iso_date(date: &str) -> String {
     if let Ok(d) = NaiveDate::parse_from_str(date, "%d.%m.%Y") {
         d.format("%Y-%m-%d").to_string()
@@ -28,6 +32,9 @@ fn to_display_date(date: &str) -> String {
     }
 }
 
+// ============================================================================
+// VERİTABANI SINIFI
+// ============================================================================
 #[pyclass]
 struct Database {
     invoices_pool: Arc<RwLock<Option<SqlitePool>>>,
@@ -48,8 +55,12 @@ impl Database {
         }
     }
 
+    // ------------------------------------------------------------------------
+    // BAĞLANTI VE TABLO OLUŞTURMA
+    // ------------------------------------------------------------------------
+
     fn init_connections(&self) -> PyResult<()> {
-        // Ensure Database directory exists
+        // Database klasörünün var olduğundan emin ol
         if !Path::new("Database").exists() {
             fs::create_dir("Database").map_err(|e| PyRuntimeError::new_err(format!("Failed to create Database directory: {}", e)))?;
         }
@@ -59,7 +70,7 @@ impl Database {
         let history_pool = self.history_pool.clone();
 
         self.runtime.block_on(async move {
-            // Invoices DB (Faturalar ve Genel Giderler)
+            // Faturalar Veritabanı (Faturalar ve Genel Giderler)
             let opts = SqliteConnectOptions::from_str("sqlite:Database/invoices.db?mode=rwc")
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to parse connection string: {}", e)))?
                 .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
@@ -70,7 +81,7 @@ impl Database {
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to connect to invoices.db: {}", e)))?;
             *invoices_pool.write().await = Some(pool);
 
-            // Settings DB (Ayarlar ve Döviz Kurları)
+            // Ayarlar Veritabanı (Ayarlar ve Döviz Kurları)
             let opts = SqliteConnectOptions::from_str("sqlite:Database/settings.db?mode=rwc")
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to parse connection string: {}", e)))?
                 .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
@@ -81,7 +92,7 @@ impl Database {
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to connect to settings.db: {}", e)))?;
             *settings_pool.write().await = Some(pool);
 
-            // History DB (İşlem Geçmişi)
+            // Geçmiş Veritabanı (İşlem Geçmişi)
             let opts = SqliteConnectOptions::from_str("sqlite:Database/history.db?mode=rwc")
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to parse connection string: {}", e)))?
                 .journal_mode(sqlx::sqlite::SqliteJournalMode::Wal);
@@ -102,9 +113,9 @@ impl Database {
         let history_pool = self.history_pool.clone();
 
         self.runtime.block_on(async move {
-            // INVOICES DB TABLES
+            // FATURA VERİTABANI TABLOLARI
             if let Some(pool) = invoices_pool.read().await.as_ref() {
-                // Income Invoices (Gelir Faturaları)
+                // Gelir Faturaları
                 sqlx::query(
                     r#"
                     CREATE TABLE IF NOT EXISTS income_invoices (
@@ -133,7 +144,7 @@ impl Database {
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to create income_invoices table: {}", e)))?;
 
-                // Expense Invoices (Gider Faturaları)
+                // Gider Faturaları
                 sqlx::query(
                     r#"
                     CREATE TABLE IF NOT EXISTS expense_invoices (
@@ -162,7 +173,7 @@ impl Database {
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to create expense_invoices table: {}", e)))?;
 
-                // General Expenses
+                // Genel Giderler
                 sqlx::query(
                     r#"
                     CREATE TABLE IF NOT EXISTS general_expenses (
@@ -187,7 +198,7 @@ impl Database {
                 .await
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to create general_expenses: {}", e)))?;
 
-                // Corporate Tax
+                // Kurumlar Vergisi
                 sqlx::query(
                     r#"
                     CREATE TABLE IF NOT EXISTS corporate_tax (
@@ -213,7 +224,7 @@ impl Database {
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to create corporate_tax: {}", e)))?;
             }
 
-            // SETTINGS DB TABLES
+            // AYARLAR VERİTABANI TABLOLARI
             if let Some(pool) = settings_pool.read().await.as_ref() {
                 sqlx::query(
                     r#"
@@ -241,7 +252,7 @@ impl Database {
                 .map_err(|e| PyRuntimeError::new_err(format!("Failed to create exchange_rates: {}", e)))?;
             }
 
-            // HISTORY DB TABLES
+            // GEÇMİŞ VERİTABANI TABLOLARI
             if let Some(pool) = history_pool.read().await.as_ref() {
                 sqlx::query(
                     r#"
@@ -262,15 +273,17 @@ impl Database {
         })
     }
 
-    // ===== GELİR INVOICE METHODS =====
+    // ============================================================================
+    // GELİR FATURASI METOTLARI
+    // ============================================================================
     
     fn add_gelir_invoice(&self, data: &Bound<'_, PyDict>) -> PyResult<i64> {
         let invoices_pool = self.invoices_pool.clone();
         
-        // Python dict'ten değerleri al
+        // Python sözlüğünden değerleri al
         let fatura_no: Option<String> = data.get_item("fatura_no")?.and_then(|v| v.extract().ok());
         let tarih_raw: Option<String> = data.get_item("tarih")?.and_then(|v| v.extract().ok());
-        let tarih = tarih_raw.map(|t| to_iso_date(&t)); // Convert to ISO
+        let tarih = tarih_raw.map(|t| to_iso_date(&t)); // ISO formatına çevir
         
         let firma: Option<String> = data.get_item("firma")?.and_then(|v| v.extract().ok());
         let malzeme: Option<String> = data.get_item("malzeme")?.and_then(|v| v.extract().ok());
@@ -327,7 +340,7 @@ impl Database {
         let invoices_pool = self.invoices_pool.clone();
         
         let tarih_raw: Option<String> = data.get_item("tarih")?.and_then(|v| v.extract().ok());
-        let tarih = tarih_raw.map(|t| to_iso_date(&t)); // Convert to ISO
+        let tarih = tarih_raw.map(|t| to_iso_date(&t)); // ISO formatına çevir
 
         let firma: Option<String> = data.get_item("firma")?.and_then(|v| v.extract().ok());
         let malzeme: Option<String> = data.get_item("malzeme")?.and_then(|v| v.extract().ok());
@@ -457,7 +470,7 @@ impl Database {
             dict.set_item("id", row.get::<i64, _>("id"))?;
             dict.set_item("fatura_no", row.try_get::<String, _>("fatura_no").ok())?;
             
-            // Convert ISO date back to Display date
+            // ISO tarihini görüntüleme formatına geri çevir
             let tarih_iso = row.try_get::<String, _>("tarih").ok();
             let tarih_display = tarih_iso.as_ref().map(|t| to_display_date(t));
             dict.set_item("tarih", tarih_display)?;
@@ -542,7 +555,9 @@ impl Database {
         }
     }
 
-    // ===== GİDER INVOICE METHODS =====
+    // ============================================================================
+    // GİDER FATURASI METOTLARI
+    // ============================================================================
     
     fn add_gider_invoice(&self, data: &Bound<'_, PyDict>) -> PyResult<i64> {
         let invoices_pool = self.invoices_pool.clone();
@@ -822,7 +837,9 @@ impl Database {
         }
     }
 
-    // ===== SETTINGS METHODS =====
+    // ============================================================================
+    // AYAR METOTLARI
+    // ============================================================================
     
     fn get_setting(&self, key: String) -> PyResult<Option<String>> {
         let settings_pool = self.settings_pool.clone();
@@ -889,7 +906,9 @@ impl Database {
         Ok(dict.into())
     }
 
-    // ===== EXCHANGE RATES METHODS =====
+    // ============================================================================
+    // DÖVİZ KURU METOTLARI
+    // ============================================================================
     
     fn save_exchange_rates(&self, usd_rate: f64, eur_rate: f64) -> PyResult<()> {
         let settings_pool = self.settings_pool.clone();
@@ -945,7 +964,7 @@ impl Database {
         })
     }
 
-    // ===== HISTORY METHODS =====
+    // ===== GEÇMİŞ METOTLARI =====
     
     fn add_history_record(&self, action: String, details: String) -> PyResult<()> {
         let history_pool = self.history_pool.clone();
@@ -1048,12 +1067,12 @@ impl Database {
         })
     }
 
-    // ===== YEARLY EXPENSES METHODS =====
+    // ===== YILLIK GİDER METOTLARI =====
     
     fn add_or_update_yearly_expenses(&self, year: i64, _py: Python<'_>, monthly_data: &Bound<'_, PyDict>) -> PyResult<i64> {
         let invoices_pool = self.invoices_pool.clone();
         
-        // Extract monthly data
+        // Aylık verileri çıkar
         let months = vec!["ocak", "subat", "mart", "nisan", "mayis", "haziran",
                          "temmuz", "agustos", "eylul", "ekim", "kasim", "aralik"];
         let mut monthly_amounts: Vec<f64> = Vec::new();
@@ -1067,7 +1086,7 @@ impl Database {
         
         self.runtime.block_on(async move {
             if let Some(pool) = invoices_pool.read().await.as_ref() {
-                // Check if year exists
+                // Yılın var olup olmadığını kontrol et
                 let check = sqlx::query("SELECT id FROM general_expenses WHERE yil = ?")
                     .bind(year)
                     .fetch_optional(pool)
@@ -1075,7 +1094,7 @@ impl Database {
                     .map_err(|e| PyRuntimeError::new_err(format!("Failed to check yearly expenses: {}", e)))?;
 
                 if check.is_some() {
-                    // Update
+                    // Güncelle
                     let result = sqlx::query(
                         r#"
                         UPDATE general_expenses SET
@@ -1103,7 +1122,7 @@ impl Database {
 
                     Ok(result.rows_affected() as i64)
                 } else {
-                    // Insert
+                    // Ekle
                     let result = sqlx::query(
                         r#"
                         INSERT INTO general_expenses (yil, ocak, subat, mart, nisan, mayis, haziran,
@@ -1263,12 +1282,12 @@ impl Database {
         Ok(result.into())
     }
 
-    // ===== CORPORATE TAX METHODS =====
+    // ===== KURUMLAR VERGİSİ METOTLARI =====
     
     fn add_or_update_corporate_tax(&self, year: i64, _py: Python<'_>, monthly_data: &Bound<'_, PyDict>) -> PyResult<i64> {
         let invoices_pool = self.invoices_pool.clone();
         
-        // Extract monthly data
+        // Aylık verileri çıkar
         let months = vec!["ocak", "subat", "mart", "nisan", "mayis", "haziran",
                          "temmuz", "agustos", "eylul", "ekim", "kasim", "aralik"];
         let mut monthly_amounts: Vec<f64> = Vec::new();
@@ -1282,7 +1301,7 @@ impl Database {
         
         self.runtime.block_on(async move {
             if let Some(pool) = invoices_pool.read().await.as_ref() {
-                // Check if year exists
+                // Yılın var olup olmadığını kontrol et
                 let check = sqlx::query("SELECT id FROM corporate_tax WHERE yil = ?")
                     .bind(year)
                     .fetch_optional(pool)
@@ -1290,7 +1309,7 @@ impl Database {
                     .map_err(|e| PyRuntimeError::new_err(format!("Failed to check corporate tax: {}", e)))?;
 
                 if check.is_some() {
-                    // Update
+                    // Güncelle
                     let result = sqlx::query(
                         r#"
                         UPDATE corporate_tax SET
@@ -1318,7 +1337,7 @@ impl Database {
 
                     Ok(result.rows_affected() as i64)
                 } else {
-                    // Insert
+                    // Ekle
                     let result = sqlx::query(
                         r#"
                         INSERT INTO corporate_tax (yil, ocak, subat, mart, nisan, mayis, haziran,

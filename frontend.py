@@ -1,4 +1,4 @@
-# Frontend.py - Flet UI
+# Frontend.py - Flet Arayüzü
 # -*- coding: utf-8 -*-
 """
 KULLANICI ARAYÜZÜ (UI) MODÜLÜ
@@ -61,7 +61,10 @@ def on_backend_status_updated(message, duration):
 backend_instance.on_data_updated = on_backend_data_updated
 backend_instance.on_status_updated = on_backend_status_updated
 
-# --- RENK PALETİ (Modern Dashboard Teması) ---
+# ============================================================================
+# RENK PALETİ (Modern Dashboard Teması)
+# ============================================================================
+
 col_primary = "#6C5DD3"   # Mor (Ana aksiyon rengi)
 col_secondary = "#FF9F43" # Turuncu (İkincil vurgular)
 col_success = "#4CD964"   # Yeşil (Başarılı işlemler, gelirler)
@@ -84,7 +87,10 @@ col_secondary_50 = "#80FF9F43"
 transparent_white = "#00FFFFFF"
 tooltip_bg = "inverseSurface"
 
-# --- GLOBAL DURUM (STATE) ---
+# ============================================================================
+# GLOBAL DURUM (STATE)
+# ============================================================================
+
 # Uygulama genelinde paylaşılan veriler
 state = {
     "sidebar_expanded": False,
@@ -109,14 +115,17 @@ state = {
 }
 
 def tr(key):
-    """Helper function to get translated text based on current state"""
+    """Mevcut duruma göre çevrilmiş metni almak için yardımcı fonksiyon"""
     return get_text(key, state.get("current_language", "tr"))
 
-# --- BACKEND YARDIMCI FONKSİYONLAR ---
+# ============================================================================
+# BACKEND YARDIMCI FONKSİYONLAR
+# ============================================================================
+
 def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
+    """ Kaynağa mutlak yolu al, geliştirme ve PyInstaller için çalışır """
     try:
-        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        # PyInstaller geçici bir klasör oluşturur ve yolu _MEIPASS içinde saklar
         base_path = sys._MEIPASS
     except Exception:
         base_path = os.path.abspath(".")
@@ -173,7 +182,9 @@ def get_exchange_rate_display():
         return f"1 USD = {usd_tl:.2f} TL | 1 EUR = {eur_tl:.2f} TL"
     return "Kur bilgisi yükleniyor..."
 
-# --- YARDIMCI BİLEŞENLER ---
+# ============================================================================
+# YARDIMCI BİLEŞENLER
+# ============================================================================
 
 class ScaleButton(ft.Container):
     def __init__(self, icon, color, tooltip_text, width=50, height=45, on_click=None):
@@ -335,7 +346,7 @@ def create_vertical_input(label, hint, width=None, expand=True, is_dropdown=Fals
 # Integrate a backend data source and supply rows dynamically when ready.
 
 # ============================================================================
-# FATURA TABLOSU OLUŞTURMA (Invoice Table Creation)
+# FATURA TABLOSU OLUŞTURMA
 # ============================================================================
 def create_invoice_table_content(sort_option="newest", invoice_type="income", on_select_changed=None, invoice_list=None):
     """Backend'den fatura verilerini çekerek DataTable oluşturur."""
@@ -463,7 +474,7 @@ def create_invoice_table_content(sort_option="newest", invoice_type="income", on
     return table
 
 # ============================================================================
-# DÖNEMSEL TABLO OLUŞTURMA (Periodic Table Creation)
+# DÖNEMSEL TABLO OLUŞTURMA
 # ============================================================================
 def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
     """Dönemsel gelir/gider tablosu - Gerçek verilerle dolu"""
@@ -1667,7 +1678,7 @@ def main(page: ft.Page):
     # def toggle_sidebar(e): ...
 
     # ------------------------------------------------------------------------
-    # DÖNEMSEL GELİR SAYFASI (Periodic Income Page)
+    # DÖNEMSEL GELİR SAYFASI
     # ------------------------------------------------------------------------
     def create_donemsel_page():
         # Yıl dropdown'ı için seçenekler
@@ -2046,7 +2057,7 @@ def main(page: ft.Page):
         )
 
     # ------------------------------------------------------------------------
-    # FATURALAR SAYFASI (Invoices Page)
+    # FATURALAR SAYFASI
     # ------------------------------------------------------------------------
     def create_invoices_page():
         general_expenses_section = create_grid_expenses(page)

@@ -2,6 +2,10 @@ use pyo3::prelude::*;
 use rxing::BarcodeFormat;
 use image::{DynamicImage, GenericImageView};
 
+// ============================================================================
+// YARDIMCI FONKSİYONLAR
+// ============================================================================
+
 /// QR tarama sonucunu döndüren yardımcı fonksiyon (Raw Luma)
 /// rxing kütüphanesini kullanarak verilen piksel verisinde QR kodu arar.
 fn scan_helper_raw(width: u32, height: u32, raw_pixels: Vec<u8>) -> Option<String> {
@@ -39,6 +43,10 @@ fn crop_luma_raw(data: &[u8], width: u32, x: u32, y: u32, w: u32, h: u32) -> Vec
     }
     cropped
 }
+
+// ============================================================================
+// PYTHON WRAPPER FONKSİYONLARI
+// ============================================================================
 
 /// Ham Luma (Gri Tonlama) verisini alıp QR arar (Performans için)
 /// Python GIL (Global Interpreter Lock) serbest bırakılarak çalışır,
@@ -137,6 +145,10 @@ fn clean_json_string(text: String) -> PyResult<String> {
     
     Ok(cleaned)
 }
+
+// ============================================================================
+// MODÜL TANIMLAMASI
+// ============================================================================
 
 /// Modül Tanımlaması (PyO3 0.21+ Bound Syntax)
 /// Python tarafına dışa aktarılacak fonksiyonları tanımlar.
