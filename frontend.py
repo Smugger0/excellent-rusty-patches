@@ -1,12 +1,17 @@
 # Frontend.py - Flet UI
+# -*- coding: utf-8 -*-
+"""
+KULLANICI ARAYÜZÜ (UI) MODÜLÜ
+
+Bu modül, Flet kütüphanesi kullanılarak oluşturulan modern ve responsive
+kullanıcı arayüzünü içerir. Backend ile asenkron olarak haberleşir.
+"""
+
 # Merkezi imports'tan gerekli kütüphaneleri al
 from imports import (
     ft, datetime, time, threading, Decimal, os, sys, 
     win32event, win32api, winerror, ctypes, traceback
 )
-# if getattr(sys, 'frozen', False):
-#     sys.stdout = open(os.devnull, 'w')
-#     sys.stderr = open(os.devnull, 'w')
 
 # Windows görev çubuğu simgesi için AppUserModelID ayarla (en başta yapılmalı)
 try:
@@ -18,9 +23,9 @@ except Exception:
 # Backend modüllerini import et
 from backend import Backend
 from invoices import InvoiceProcessor
-# Lazy loading için kaldırıldı: toexcel, topdf, backup
+from locales import get_text
 
-# Tek instance kontrolü
+# Tek instance kontrolü (Uygulamanın ikinci kez açılmasını engeller)
 mutex = win32event.CreateMutex(None, False, 'Global\\ExcellentMVPSingleInstance')
 last_error = win32api.GetLastError()
 
@@ -29,13 +34,15 @@ if last_error == winerror.ERROR_ALREADY_EXISTS:
     ctypes.windll.user32.MessageBoxW(0, "Excellent uygulaması zaten çalışıyor!", "Uyarı", 0x30)
     sys.exit(0)
 
-# Backend instance oluştur
+# Backend instance oluştur (Tüm uygulama boyunca tek bir instance kullanılır)
 backend_instance = Backend()
-# Exporters lazy load edilecek
 
 # Backend callback'lerini ayarla (Flet uyumlu)
 def on_backend_data_updated():
-    """Backend'den veri güncellendiğinde tüm sayfalardaki bileşenleri günceller"""
+    """
+    Backend'den veri güncellendiğinde (örn: yeni fatura eklendiğinde)
+    tüm sayfalardaki ilgili bileşenleri (tablolar, grafikler) günceller.
+    """
     try:
         # Tüm kayıtlı callback'leri çağır
         for page_name, callback in state["update_callbacks"].items():
@@ -54,30 +61,31 @@ def on_backend_status_updated(message, duration):
 backend_instance.on_data_updated = on_backend_data_updated
 backend_instance.on_status_updated = on_backend_status_updated
 
-# --- RENK PALETİ ---
-col_primary = "#6C5DD3"   # Mor
-col_secondary = "#FF9F43" # Turuncu
-col_success = "#4CD964"   # Yeşil
-col_danger = "#FF3B30"    # Kırmızı
-col_bg = "#F4F5FA"        # Arka Plan
-col_white = "#FFFFFF"     # Beyaz
-col_text = "#1A1D1F"      # Koyu Metin
-col_text_light = "#9AA1B9" # Gri Metin
+# --- RENK PALETİ (Modern Dashboard Teması) ---
+col_primary = "#6C5DD3"   # Mor (Ana aksiyon rengi)
+col_secondary = "#FF9F43" # Turuncu (İkincil vurgular)
+col_success = "#4CD964"   # Yeşil (Başarılı işlemler, gelirler)
+col_danger = "#FF3B30"    # Kırmızı (Hatalar, giderler)
+col_bg = "#F4F5FA"        # Arka Plan (Açık gri)
+col_white = "#FFFFFF"     # Beyaz (Kartlar ve paneller)
+col_text = "#1A1D1F"      # Koyu Metin (Başlıklar)
+col_text_light = "#9AA1B9" # Gri Metin (Açıklamalar)
 col_blue_donut = "#2D9CDB"
 col_border = "#E6E8EC"
 col_table_header_bg = "#5A5278"
 col_selected_row = "#E8F5E9" 
 col_input_bg = "#FFFFFF"
-col_text_secondary = "#6B7280"  # Gri metin (input label)
-col_card = "#FFFFFF"  # Beyaz (input arka plan) 
+col_text_secondary = "#6B7280"
+col_card = "#FFFFFF"
 
-# Şeffaf Renkler
+# Şeffaf Renkler (Grafik ve efektler için)
 col_primary_50 = "#806C5DD3"
 col_secondary_50 = "#80FF9F43"
 transparent_white = "#00FFFFFF"
-tooltip_bg = "#CC1A1D1F"
+tooltip_bg = "inverseSurface"
 
-# --- GLOBAL DURUM ---
+# --- GLOBAL DURUM (STATE) ---
+# Uygulama genelinde paylaşılan veriler
 state = {
     "sidebar_expanded": False,
     "current_currency": "TRY",
@@ -87,17 +95,22 @@ state = {
     "current_page": "home",
     "invoice_sort_option": "newest",
     "animation_completed": False,
+    "current_language": "tr",
     "excel_export_path": os.path.join(os.getcwd(), "ExcelReports"),
     "pdf_export_path": os.path.join(os.getcwd(), "PDFExports"),
-    # Dinamik güncelleme için referanslar
+    # Dinamik güncelleme için referanslar (Sayfalar arası iletişim)
     "update_callbacks": {
         "home_page": None,
         "donemsel_page": None,
         "invoice_page": None,
         "general_expenses": None,
-        "transaction_history": None  # İşlem geçmişi callback'i
+        "transaction_history": None
     }
 }
+
+def tr(key):
+    """Helper function to get translated text based on current state"""
+    return get_text(key, state.get("current_language", "tr"))
 
 # --- BACKEND YARDIMCI FONKSİYONLAR ---
 def resource_path(relative_path):
@@ -298,21 +311,21 @@ def create_vertical_input(label, hint, width=None, expand=True, is_dropdown=Fals
     if is_dropdown:
         input_control = ft.Dropdown(
             options=[ft.dropdown.Option(opt) for opt in dropdown_options] if dropdown_options else [],
-            text_size=13, color=col_text, border_color="transparent", bgcolor="transparent",
+            text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent",
             content_padding=ft.padding.only(left=10, bottom=5), hint_text=hint,
             hint_style=ft.TextStyle(color="#D0D0D0", size=12),
         )
     else:
         input_control = ft.TextField(
             hint_text=hint, hint_style=ft.TextStyle(color="#D0D0D0", size=12),
-            text_size=13, color=col_text, border_color="transparent", bgcolor="transparent",
+            text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent",
             content_padding=ft.padding.only(left=10, bottom=12), 
         )
 
     return ft.Column([
-        ft.Text(label, size=12, color=col_text_light, weight="bold"),
+        ft.Text(label, size=12, color="onSurfaceVariant", weight="bold"),
         ft.Container(
-            content=input_control, bgcolor=col_white, border=ft.border.all(1, col_border),
+            content=input_control, bgcolor="surface", border=ft.border.all(1, "outline"),
             border_radius=8, height=38, width=width
         )
     ], spacing=3, expand=expand)
@@ -360,7 +373,7 @@ def create_invoice_table_content(sort_option="newest", invoice_type="income", on
         # DataTable satırlarını oluştur
         if invoices:
             for inv in invoices:
-                def cell(text, color=col_text): 
+                def cell(text, color="onBackground"): 
                     return ft.DataCell(ft.Text(str(text), size=12, color=color))
                 
                 # Checkbox hücresi - manuel seçim için
@@ -390,11 +403,11 @@ def create_invoice_table_content(sort_option="newest", invoice_type="income", on
                     if rate_val > 0:
                         return ft.DataCell(
                             ft.Column([
-                                ft.Text(amount_text, size=12, color=col_text, weight="bold"),
-                                ft.Text(f"Kur: {rate_val:.2f}", size=10, color=col_text_light)
+                                ft.Text(amount_text, size=12, color="onBackground", weight="bold"),
+                                ft.Text(tr("rate_label").format(rate_val), size=10, color="onSurfaceVariant")
                             ], spacing=2, alignment=ft.MainAxisAlignment.CENTER)
                         )
-                    return ft.DataCell(ft.Text(amount_text, size=12, color=col_text))
+                    return ft.DataCell(ft.Text(amount_text, size=12, color="onBackground"))
 
                 # Her satıra invoice verilerini data olarak ekle
                 row = ft.DataRow(
@@ -406,7 +419,7 @@ def create_invoice_table_content(sort_option="newest", invoice_type="income", on
                         cell(inv.get('firma', '')),
                         cell(inv.get('malzeme', '')),
                         cell(inv.get('miktar', '')),
-                        ft.DataCell(ft.Text(f"{float(inv.get('toplam_tutar_tl', 0)):,.2f}", size=12, color=col_text, weight="bold")),
+                        ft.DataCell(ft.Text(f"{float(inv.get('toplam_tutar_tl', 0)):,.2f}", size=12, color="onBackground", weight="bold")),
                         create_currency_cell(usd_display, usd_rate_val),
                         create_currency_cell(eur_display, eur_rate_val),
                         cell(kdv_text)
@@ -416,12 +429,38 @@ def create_invoice_table_content(sort_option="newest", invoice_type="income", on
     except Exception as e:
         pass
 
-    return ft.DataTable(
-        columns=[header("SEÇ"), header("FATURA NO"), header("TARİH"), header("FİRMA"), header("MALZEME"), header("MİKTAR"), ft.DataColumn(ft.Text("TUTAR (TL)", weight="bold", color=col_white, size=12), numeric=True), ft.DataColumn(ft.Text("TUTAR (USD)", weight="bold", color=col_white, size=12), numeric=True), ft.DataColumn(ft.Text("TUTAR (EUR)", weight="bold", color=col_white, size=12), numeric=True), header("KDV (Tutar/%)")],
+    # Select All Checkbox Logic
+    def on_select_all(e):
+        is_selected = e.control.value
+        for row in table.rows:
+            if len(row.cells) > 0 and isinstance(row.cells[0].content, ft.Checkbox):
+                row.cells[0].content.value = is_selected
+        
+        if on_select_changed:
+            on_select_changed(e)
+            
+        table.update()
+
+    select_all_checkbox = ft.Checkbox(value=False, on_change=on_select_all, fill_color=col_white, check_color=col_primary)
+
+    table = ft.DataTable(
+        columns=[
+            ft.DataColumn(select_all_checkbox), 
+            header(tr("col_invoice_no")), 
+            header(tr("col_date")), 
+            header(tr("col_company")), 
+            header(tr("col_item")), 
+            header(tr("col_amount")), 
+            ft.DataColumn(ft.Text(tr("col_total_tl"), weight="bold", color=col_white, size=12), numeric=True), 
+            ft.DataColumn(ft.Text(tr("col_total_usd"), weight="bold", color=col_white, size=12), numeric=True), 
+            ft.DataColumn(ft.Text(tr("col_total_eur"), weight="bold", color=col_white, size=12), numeric=True), 
+            header(tr("col_vat"))
+        ],
         rows=rows, heading_row_color=col_table_header_bg, heading_row_height=48, data_row_max_height=60,
-        vertical_lines=ft.border.BorderSide(0, "transparent"), horizontal_lines=ft.border.BorderSide(1, "#F0F0F0"),
+        vertical_lines=ft.border.BorderSide(0, "transparent"), horizontal_lines=ft.border.BorderSide(1, "outlineVariant"),
         column_spacing=25, width=float("inf")
     )
+    return table
 
 # ============================================================================
 # DÖNEMSEL TABLO OLUŞTURMA (Periodic Table Creation)
@@ -431,10 +470,10 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
     if year is None:
         year = datetime.now().year
     
-    months = ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN", "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"]
+    months = [tr("month_jan"), tr("month_feb"), tr("month_mar"), tr("month_apr"), tr("month_may"), tr("month_jun"), tr("month_jul"), tr("month_aug"), tr("month_sep"), tr("month_oct"), tr("month_nov"), tr("month_dec")]
     quarter_colors = [col_danger, col_success, col_secondary, col_blue_donut]
-    def header(t): return ft.DataColumn(ft.Text(t, weight="bold", color=col_white, size=12))
-    def cell(t): return ft.DataCell(ft.Text(t, color="#333333", size=12))
+    def header(t): return ft.DataColumn(ft.Text(t, weight="bold", color="onPrimaryContainer", size=12))
+    def cell(t): return ft.DataCell(ft.Text(t, color="onSurface", size=12))
     
     # Backend'den verileri çek
     try:
@@ -516,16 +555,16 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
         
         # Header
         header_row = ft.Container(
-            bgcolor=col_table_header_bg,
+            bgcolor="primaryContainer",
             padding=ft.padding.symmetric(vertical=12, horizontal=10),
             border_radius=ft.border_radius.only(top_left=10, top_right=10),
             content=ft.Row([
-                ft.Container(width=w_donem, content=ft.Text("DÖNEM", weight="bold", color=col_white, size=11)),
-                ft.Container(width=w_gelir, content=ft.Text("GELİR (Kesilen)", weight="bold", color=col_white, size=11)),
-                ft.Container(width=w_gider, content=ft.Text("GİDER (Gelen + Genel)", weight="bold", color=col_white, size=11)),
-                ft.Container(width=w_kdv_farki, content=ft.Text("KDV FARKI", weight="bold", color=col_white, size=11)),
-                ft.Container(width=w_kurumlar, content=ft.Text("KURUMLAR VERGİSİ", weight="bold", color=col_white, size=11)),
-                ft.Container(expand=True, content=ft.Text("ÖDENECEK VERGİ (3 Aylık)", weight="bold", color=col_white, size=11)),
+                ft.Container(width=w_donem, content=ft.Text(tr("col_period"), weight="bold", color="onPrimaryContainer", size=11)),
+                ft.Container(width=w_gelir, content=ft.Text(tr("col_income_billed"), weight="bold", color="onPrimaryContainer", size=11)),
+                ft.Container(width=w_gider, content=ft.Text(tr("col_expense_total"), weight="bold", color="onPrimaryContainer", size=11)),
+                ft.Container(width=w_kdv_farki, content=ft.Text(tr("col_vat_diff"), weight="bold", color="onPrimaryContainer", size=11)),
+                ft.Container(width=w_kurumlar, content=ft.Text(tr("col_corp_tax"), weight="bold", color="onPrimaryContainer", size=11)),
+                ft.Container(expand=True, content=ft.Text(tr("col_tax_payable"), weight="bold", color="onPrimaryContainer", size=11)),
             ], spacing=8)
         )
         
@@ -586,14 +625,14 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
                 
                 # Gelir bölümü: Tutar ve altında KDV
                 gelir_content = ft.Column([
-                    ft.Text(f"{income:,.2f} TL", size=12, color="#333333", weight="bold"),
-                    ft.Text(f"KDV: {income_kdv:,.2f} TL", size=9, color="#9AA1B9")
+                    ft.Text(f"{income:,.2f} TL", size=12, color="onSurface", weight="bold"),
+                    ft.Text(f"{tr('vat_label')}: {income_kdv:,.2f} TL", size=9, color="onSurfaceVariant")
                 ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.START)
                 
                 # Gider bölümü: Tutar ve altında KDV
                 gider_content = ft.Column([
-                    ft.Text(f"{total_month_expense:,.2f} TL", size=12, color="#333333", weight="bold"),
-                    ft.Text(f"KDV: {expense_kdv:,.2f} TL", size=9, color="#9AA1B9")
+                    ft.Text(f"{total_month_expense:,.2f} TL", size=12, color="onSurface", weight="bold"),
+                    ft.Text(f"{tr('vat_label')}: {expense_kdv:,.2f} TL", size=9, color="onSurfaceVariant")
                 ], spacing=1, horizontal_alignment=ft.CrossAxisAlignment.START)
                 
                 # KDV Farkı hesapla (Gelir KDV - Gider KDV)
@@ -606,12 +645,12 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
                     kurumlar_content = tax_fields[i]
                 else:
                     kurumlar_content = ft.Text(f"%{tax_percentage:.0f}" if tax_percentage > 0 else "-", 
-                                              size=12, color="#333333")
+                                              size=12, color="onSurface")
                 
                 row = ft.Container(
                     height=48,  # Satır yüksekliği normale döndü
                     padding=ft.padding.symmetric(vertical=5),
-                    border=ft.border.only(bottom=ft.border.BorderSide(1, "#F0F0F0")) if i % 3 != 2 else None,
+                    border=ft.border.only(bottom=ft.border.BorderSide(1, "outlineVariant")) if i % 3 != 2 else None,
                     content=ft.Row([
                         month_cell,
                         ft.Container(width=w_gelir, content=gelir_content),
@@ -631,34 +670,34 @@ def create_donemsel_table(year=None, tax_fields=None, on_tax_change=None):
                 expand=True,
                 height=144, # 3 * 48 (satır yüksekliği güncellendi)
                 content=ft.Column([
-                    ft.Text("ÇEYREK TOPLAM", size=10, color="#999999", weight="bold"),
+                    ft.Text(tr("quarter_total"), size=10, color="onSurfaceVariant", weight="bold"),
                     ft.Text(f"{quarter_kurumlar_total:,.2f} TL", size=16, weight="bold", color=quarter_color)
                 ], alignment=ft.MainAxisAlignment.CENTER, horizontal_alignment=ft.CrossAxisAlignment.CENTER),
                 alignment=ft.alignment.center,
-                border=ft.border.only(left=ft.border.BorderSide(1, "#E0E0E0")),
-                bgcolor="#FAFAFA"
+                border=ft.border.only(left=ft.border.BorderSide(1, "outline")),
+                bgcolor="surfaceContainerHighest"
             )
             
             # Çeyrek Bloğu
             quarter_block = ft.Container(
                 content=ft.Row([left_column, right_cell], spacing=10),
-                border=ft.border.all(1, "#E0E0E0"),
+                border=ft.border.all(1, "outline"),
                 border_radius=8,
                 margin=ft.margin.only(bottom=10),
-                bgcolor=col_white
+                bgcolor="surface"
             )
             quarter_blocks.append(quarter_block)
         
         return ft.Column([header_row] + quarter_blocks)
         
     except Exception as e:
-        return ft.Text("Veri yüklenirken hata oluştu.")
+        return ft.Text(tr("error_loading_data"))
 
 # ============================================================================
 # GENEL GİDERLER TABLOSU (General Expenses Grid)
 # ============================================================================
 def create_grid_expenses(page):
-    months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+    months = [tr("month_jan"), tr("month_feb"), tr("month_mar"), tr("month_apr"), tr("month_may"), tr("month_jun"), tr("month_jul"), tr("month_aug"), tr("month_sep"), tr("month_oct"), tr("month_nov"), tr("month_dec")]
     month_keys = ['ocak', 'subat', 'mart', 'nisan', 'mayis', 'haziran', 'temmuz', 'agustos', 'eylul', 'ekim', 'kasim', 'aralik']
     
     # Yıl seçenekleri
@@ -671,8 +710,8 @@ def create_grid_expenses(page):
         text_size=12,
         content_padding=10,
         width=95,
-        bgcolor=col_white,
-        border_color=col_border,
+        bgcolor="surface",
+        border_color="outline",
         border_radius=8
     )
 
@@ -684,10 +723,10 @@ def create_grid_expenses(page):
         text_size=12,
         content_padding=10,
         width=80,
-        bgcolor=col_white,
-        border_color=col_border,
+        bgcolor="surface",
+        border_color="outline",
         border_radius=8,
-        hint_text="Birim"
+        hint_text=tr("currency")
     )
     
     # TextField'ları sakla
@@ -699,25 +738,25 @@ def create_grid_expenses(page):
             value="0", 
             text_size=14, 
             text_style=ft.TextStyle(weight=ft.FontWeight.BOLD), 
-            color=col_text, 
+            color="onBackground", 
             text_align=ft.TextAlign.CENTER, 
-            border_color="#E0E0E0", 
+            border_color="outline", 
             focused_border_color=col_primary, 
             height=35, 
             content_padding=5, 
-            bgcolor="#FAFAFA", 
+            bgcolor="surface", 
             prefix_text="₺ "
         )
         expense_fields[month_keys[i]] = text_field
         
         card = ft.Container(
-            bgcolor=col_white, 
+            bgcolor="surface", 
             border_radius=12, 
             padding=10, 
             width=140, 
             height=85, 
             shadow=ft.BoxShadow(blur_radius=5, color="#08000000", offset=ft.Offset(0,3)), 
-            border=ft.border.all(1, "#F0F0F0"), 
+            border=ft.border.all(1, "outlineVariant"), 
             content=ft.Column([
                 ft.Container(content=ft.Text(m, size=13, weight="bold", color=col_primary), alignment=ft.alignment.center), 
                 ft.Divider(height=5, color="transparent"), 
@@ -810,7 +849,7 @@ def create_grid_expenses(page):
                 if backend_instance.on_data_updated:
                     backend_instance.on_data_updated()
                 
-                msg = f"✅ {selected_year} yılı genel giderleri kaydedildi!"
+                msg = tr("msg_expenses_saved").format(selected_year)
                 if current_curr != "TL":
                     msg += f" ({current_curr} -> TL çevrildi)"
                 
@@ -823,12 +862,12 @@ def create_grid_expenses(page):
                 load_year_data()
                 
             else:
-                page.snack_bar = ft.SnackBar(content=ft.Text("❌ Kaydetme işlemi başarısız!", color=col_white), bgcolor=col_danger)
+                page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_save_error"), color=col_white), bgcolor=col_danger)
                 page.snack_bar.open = True
                 page.update()
                 
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Hata: {str(ex)}", color=col_white), bgcolor=col_danger)
+            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
             page.snack_bar.open = True
             page.update()
     
@@ -838,7 +877,7 @@ def create_grid_expenses(page):
             expenses = backend_instance.handle_genel_gider_operation('get', limit=1000)
             
             if not expenses:
-                page.snack_bar = ft.SnackBar(content=ft.Text("❌ Dışa aktarılacak genel gider bulunamadı!", color=col_white), bgcolor=col_danger)
+                page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_expenses_export"), color=col_white), bgcolor=col_danger)
                 page.snack_bar.open = True
                 page.update()
                 return
@@ -859,10 +898,10 @@ def create_grid_expenses(page):
 
                         success_dlg = ft.AlertDialog(
                             modal=True,
-                            title=ft.Text("Başarılı"),
-                            content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
+                            title=ft.Text(tr("success")),
+                            content=ft.Text(tr("msg_file_saved").format(file_path)),
                             actions=[
-                                ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
+                                ft.ElevatedButton(tr("ok"), on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
                             ],
                             actions_alignment=ft.MainAxisAlignment.END,
                         )
@@ -870,7 +909,7 @@ def create_grid_expenses(page):
                         success_dlg.open = True
                         page.update()
                 else:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("❌ Excel aktarımı başarısız!", color=col_white), bgcolor=col_danger)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_export_error"), color=col_white), bgcolor=col_danger)
                     page.snack_bar.open = True
                     page.update()
 
@@ -882,10 +921,10 @@ def create_grid_expenses(page):
             save_file_picker = ft.FilePicker(on_result=on_save_result)
             page.overlay.append(save_file_picker)
             page.update()
-            save_file_picker.save_file(dialog_title="Excel Dosyasını Kaydet", file_name=filename, allowed_extensions=["xlsx"])
+            save_file_picker.save_file(dialog_title=tr("title_save_excel"), file_name=filename, allowed_extensions=["xlsx"])
                 
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Excel hatası: {str(ex)}", color=col_white), bgcolor=col_danger)
+            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
             page.snack_bar.open = True
             page.update()
     
@@ -895,7 +934,7 @@ def create_grid_expenses(page):
             expenses = backend_instance.handle_genel_gider_operation('get', limit=1000)
             
             if not expenses:
-                page.snack_bar = ft.SnackBar(content=ft.Text("❌ Dışa aktarılacak genel gider bulunamadı!", color=col_white), bgcolor=col_danger)
+                page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_expenses_export"), color=col_white), bgcolor=col_danger)
                 page.snack_bar.open = True
                 page.update()
                 return
@@ -916,10 +955,10 @@ def create_grid_expenses(page):
 
                         success_dlg = ft.AlertDialog(
                             modal=True,
-                            title=ft.Text("Başarılı"),
-                            content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
+                            title=ft.Text(tr("success")),
+                            content=ft.Text(tr("msg_file_saved").format(file_path)),
                             actions=[
-                                ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
+                                ft.ElevatedButton(tr("ok"), on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
                             ],
                             actions_alignment=ft.MainAxisAlignment.END,
                         )
@@ -927,7 +966,7 @@ def create_grid_expenses(page):
                         success_dlg.open = True
                         page.update()
                     else:
-                        page.snack_bar = ft.SnackBar(content=ft.Text("❌ PDF aktarımı başarısız!", color=col_white), bgcolor=col_danger)
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_export_error"), color=col_white), bgcolor=col_danger)
                         page.snack_bar.open = True
                         page.update()
 
@@ -939,10 +978,10 @@ def create_grid_expenses(page):
             save_file_picker = ft.FilePicker(on_result=on_save_result)
             page.overlay.append(save_file_picker)
             page.update()
-            save_file_picker.save_file(dialog_title="PDF Dosyasını Kaydet", file_name=filename, allowed_extensions=["pdf"])
+            save_file_picker.save_file(dialog_title=tr("title_save_pdf"), file_name=filename, allowed_extensions=["pdf"])
                 
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ PDF hatası: {str(ex)}", color=col_white), bgcolor=col_danger)
+            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
             page.snack_bar.open = True
             page.update()
     
@@ -960,18 +999,18 @@ def create_grid_expenses(page):
     state["update_callbacks"]["general_expenses"] = refresh_general_expenses
     
     # Butonları event handler'larla oluştur
-    btn_save = ScaleButton("save", "#4CD964", "Kaydet", width=40, height=40)
+    btn_save = ScaleButton("save", "#4CD964", tr("save"), width=40, height=40)
     btn_save.on_click = save_expenses
     
-    btn_excel = ScaleButton("table_view", "#217346", "Excel İndir", width=40, height=40)
+    btn_excel = ScaleButton("table_view", "#217346", tr("export_excel"), width=40, height=40)
     btn_excel.on_click = export_general_expenses_excel
     
-    btn_pdf = ScaleButton("picture_as_pdf", "#D32F2F", "PDF İndir", width=40, height=40)
+    btn_pdf = ScaleButton("picture_as_pdf", "#D32F2F", tr("export_pdf"), width=40, height=40)
     btn_pdf.on_click = export_general_expenses_pdf
     
     expense_buttons = ft.Container(padding=ft.padding.only(right=40), content=ft.Row([ft.Container(height=38, content=year_dropdown), ft.Container(height=38, content=currency_dropdown), btn_save, btn_excel, btn_pdf], spacing=5))
     
-    return ft.Container(padding=ft.padding.only(top=15), content=ft.Column([ft.Row([ft.Row([ft.Icon("calendar_month", color=col_secondary, size=20), ft.Text("Yıllık Genel Giderler", size=16, weight="bold", color=col_text)], spacing=8), expense_buttons], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=10), ft.Row(controls=expense_cards, wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.CENTER)]))
+    return ft.Container(padding=ft.padding.only(top=15), content=ft.Column([ft.Row([ft.Row([ft.Icon("calendar_month", color=col_secondary, size=20), ft.Text(tr("yearly_general_expenses"), size=16, weight="bold", color="onBackground")], spacing=8), expense_buttons], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=10), ft.Row(controls=expense_cards, wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.CENTER)]))
 
 class AnimatedDonut(ft.Stack):
     def __init__(self, value, total, color, text_value):
@@ -991,11 +1030,11 @@ class AnimatedDonut(ft.Stack):
             center_space_radius=38, sections_space=0, start_degree_offset=-90
         )
         self.chart_container = ft.Container(
-            content=self.chart, width=110, height=110, bgcolor=col_white, shape=ft.BoxShape.CIRCLE,
+            content=self.chart, width=110, height=110, bgcolor="surface", shape=ft.BoxShape.CIRCLE,
             shadow=ft.BoxShadow(blur_radius=20, spread_radius=2, color=shadow_color, offset=ft.Offset(0, 8)),
             rotate=self.chart_rotate, opacity=0, animate_opacity=ft.Animation(800, "easeIn"), animate_rotation=ft.Animation(1500, "easeOutBack")
         )
-        self.text_container = ft.Container(content=ft.Text(text_value, size=15, weight="bold", color=col_text, text_align="center"), alignment=ft.alignment.center, rotate=ft.Rotate(0, alignment=ft.alignment.center))
+        self.text_container = ft.Container(content=ft.Text(text_value, size=15, weight="bold", color="onBackground", text_align="center"), alignment=ft.alignment.center, rotate=ft.Rotate(0, alignment=ft.alignment.center))
         self.controls = [self.chart_container, self.text_container]
         state["donuts"].append(self)
 
@@ -1037,17 +1076,17 @@ class AnimatedDonut(ft.Stack):
 class DonutStatCard(ft.Container):
     def __init__(self, title, icon, color, trend_text, donut_val, donut_total, display_text):
         super().__init__()
-        self.bgcolor = col_white
+        self.bgcolor = "surface"
         self.border_radius = 24
         self.padding = ft.padding.all(20)
         self.expand = 1
-        self.shadow = ft.BoxShadow(blur_radius=15, color="#08000000", offset=ft.Offset(0, 5))
+        self.shadow = ft.BoxShadow(blur_radius=15, color="shadow", offset=ft.Offset(0, 5))
         self.donut = AnimatedDonut(value=donut_val, total=donut_total, color=color, text_value=display_text)
         self.content = ft.Row([
             ft.Column([
                 ft.Container(content=ft.Icon(icon, color=col_white, size=24), bgcolor=color, border_radius=14, width=48, height=48, alignment=ft.alignment.center, shadow=ft.BoxShadow(blur_radius=10, color=f"#4D{color.lstrip('#')}", offset=ft.Offset(0,4))),
                 ft.Container(height=5),
-                ft.Text(title, size=14, color=col_text_light, weight="w600"),
+                ft.Text(title, size=14, color="onSurfaceVariant", weight="w600"),
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=2),
             ft.Container(content=self.donut, alignment=ft.alignment.center_right)
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
@@ -1057,36 +1096,36 @@ class TransactionRow(ft.Container):
         super().__init__()
         self.padding = ft.padding.all(10)
         self.border_radius = 12
-        self.bgcolor = "#FFFFFF"
-        self.border = ft.border.all(1, "#F0F0F0")
+        self.bgcolor = "surface"
+        self.border = ft.border.all(1, "outlineVariant")
         self.margin = ft.margin.only(bottom=5)
         
         # İşlem tipine göre ikon ve renk belirleme
         if is_deleted or operation_type == "SİLME":
             icon_name = ft.Icons.DELETE_OUTLINE
-            icon_color = "#9E9E9E" # Gri
-            bg_color = "#F5F5F5"
-            op_text = "SİLİNDİ"
-            amount_color = "#9E9E9E"
+            icon_color = "onSurfaceVariant" # Gri
+            bg_color = "surfaceContainerHighest"
+            op_text = tr("op_deleted")
+            amount_color = "onSurfaceVariant"
         elif is_updated or operation_type == "GÜNCELLEME":
             icon_name = ft.Icons.EDIT_OUTLINE
-            icon_color = "#2196F3" # Mavi
-            bg_color = "#E3F2FD"
-            op_text = "GÜNCELLENDİ"
-            amount_color = "#2196F3"
+            icon_color = "primary" # Mavi
+            bg_color = "primaryContainer"
+            op_text = tr("op_updated")
+            amount_color = "primary"
         else: # EKLEME
             if is_income:
                 icon_name = ft.Icons.ARROW_UPWARD
-                icon_color = col_success # Yeşil
-                bg_color = "#E8F5E9"
-                op_text = "GELİR EKLENDİ"
-                amount_color = col_success
+                icon_color = "tertiary" # Yeşil
+                bg_color = "tertiaryContainer"
+                op_text = tr("op_income_added")
+                amount_color = "tertiary"
             else:
                 icon_name = ft.Icons.ARROW_DOWNWARD
-                icon_color = col_danger # Kırmızı
-                bg_color = "#FFEBEE"
-                op_text = "GİDER EKLENDİ"
-                amount_color = col_danger
+                icon_color = "error" # Kırmızı
+                bg_color = "errorContainer"
+                op_text = tr("op_expense_added")
+                amount_color = "error"
 
         # İkon Konteyneri
         icon_container = ft.Container(
@@ -1118,7 +1157,7 @@ class TransactionRow(ft.Container):
 
         # Metin Stilleri
         text_decoration = ft.TextDecoration.LINE_THROUGH if is_deleted else ft.TextDecoration.NONE
-        title_color = "#757575" if is_deleted else "#333333"
+        title_color = "onSurfaceVariant" if is_deleted else "onSurface"
         
         # Tutar Metni
         sign = "+" if is_income and not is_deleted else ("-" if not is_income and not is_deleted else "")
@@ -1141,12 +1180,12 @@ class TransactionRow(ft.Container):
                         content=ft.Text(op_text, size=9, weight="bold", color=icon_color),
                         bgcolor=bg_color, padding=ft.padding.symmetric(horizontal=6, vertical=2), border_radius=4
                     ),
-                    ft.Text(f"Giriş: {op_date_str}", size=11, color="#757575"),
+                    ft.Text(tr("entry_date").format(op_date_str), size=11, color="onSurfaceVariant"),
                 ], spacing=5, alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER),
                 
                 ft.Row([
-                    ft.Icon(ft.Icons.CALENDAR_TODAY, size=10, color="#9E9E9E"),
-                    ft.Text(f"Fatura Tarihi: {inv_date_str}", size=11, color="#616161", weight="w500"),
+                    ft.Icon(ft.Icons.CALENDAR_TODAY, size=10, color="onSurfaceVariant"),
+                    ft.Text(tr("invoice_date").format(inv_date_str), size=11, color="onSurfaceVariant", weight="w500"),
                 ], spacing=4, visible=bool(inv_date_str))
             ], spacing=3, expand=True),
             amount_text
@@ -1156,7 +1195,7 @@ def currency_button(text, currency_code, current_selection, on_click_handler):
     is_selected = (currency_code == current_selection)
     return ft.Container(
         content=ft.Text(text, color=col_primary if is_selected else col_text_light, weight="bold" if is_selected else "normal"),
-        bgcolor=col_white if is_selected else "transparent",
+        bgcolor="surface" if is_selected else "transparent",
         padding=ft.padding.symmetric(horizontal=12, vertical=8),
         border_radius=10,
         shadow=ft.BoxShadow(blur_radius=5, color="#10000000", offset=ft.Offset(0,2)) if is_selected else None,
@@ -1171,11 +1210,43 @@ def currency_button(text, currency_code, current_selection, on_click_handler):
 def main(page: ft.Page):
     page.title = "Excellent"
     page.padding = 0
-    page.bgcolor = col_bg
+    page.bgcolor = "background"
     page.window.width = 1400 
     page.window.height = 900
     page.window.icon = resource_path("app_icon.ico")
-    page.theme_mode = ft.ThemeMode.LIGHT
+    
+    # Tema Ayarları
+    page.theme = ft.Theme(
+        color_scheme=ft.ColorScheme(
+            background="#F4F5FA",
+            surface="#FFFFFF",
+            on_background="#1A1D1F",
+            on_surface="#1A1D1F",
+            primary="#6C5DD3",
+            secondary="#FF9F43",
+            tertiary="#4CD964",
+            error="#FF3B30",
+            outline="#E6E8EC",
+            on_surface_variant="#9AA1B9",
+            shadow="#08000000", # Çok hafif gölge (Light mode için)
+        )
+    )
+    page.dark_theme = ft.Theme(
+        color_scheme=ft.ColorScheme(
+            background="#18191A", # Daha yumuşak siyah (Dark mode background)
+            surface="#242526",    # Daha yumuşak yüzey rengi
+            on_background="#E4E6EB",
+            on_surface="#E4E6EB",
+            primary="#6C5DD3",
+            secondary="#FF9F43",
+            tertiary="#4CD964",
+            error="#FF3B30",
+            outline="#3A3B3C",
+            on_surface_variant="#B0B3B8",
+            shadow="#40000000", # Belirgin ama yumuşak gölge (Dark mode için)
+        )
+    )
+    page.theme_mode = ft.ThemeMode.SYSTEM
 
     # ------------------------------------------------------------------------
     # VERİ YARDIMCILARI (Data Helpers)
@@ -1367,13 +1438,13 @@ def main(page: ft.Page):
             
         step = max_y // 3
         return [
-            ft.ChartAxisLabel(value=0, label=ft.Text("0", size=10, color=col_text_light)),
-            ft.ChartAxisLabel(value=step, label=ft.Text(f"{symbol}{step}K", size=10, color=col_text_light)),
-            ft.ChartAxisLabel(value=step*2, label=ft.Text(f"{symbol}{step*2}K", size=10, color=col_text_light)),
-            ft.ChartAxisLabel(value=max_y, label=ft.Text(f"{symbol}{max_y}K", size=10, color=col_text_light))
+            ft.ChartAxisLabel(value=0, label=ft.Text("0", size=10, color="onSurfaceVariant")),
+            ft.ChartAxisLabel(value=step, label=ft.Text(f"{symbol}{step}K", size=10, color="onSurfaceVariant")),
+            ft.ChartAxisLabel(value=step*2, label=ft.Text(f"{symbol}{step*2}K", size=10, color="onSurfaceVariant")),
+            ft.ChartAxisLabel(value=max_y, label=ft.Text(f"{symbol}{max_y}K", size=10, color="onSurfaceVariant"))
         ]
     
-    line_chart = ft.LineChart(data_series=[ft.LineChartData(data_points=[], stroke_width=5, color=col_primary, curved=True, stroke_cap_round=True, below_line_gradient=ft.LinearGradient(begin=ft.alignment.top_center, end=ft.alignment.bottom_center, colors=[col_primary_50, transparent_white])), ft.LineChartData(data_points=[], stroke_width=5, color=col_secondary, curved=True, stroke_cap_round=True, below_line_gradient=ft.LinearGradient(begin=ft.alignment.top_center, end=ft.alignment.bottom_center, colors=[col_secondary_50, transparent_white]))], border=ft.border.all(0, "transparent"), bottom_axis=ft.ChartAxis(labels=[ft.ChartAxisLabel(value=i, label=ft.Text(m, size=12, color=col_text_light)) for i, m in enumerate(["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"])], labels_size=30), left_axis=ft.ChartAxis(labels=get_y_axis_labels(chart_max_y), labels_size=40), tooltip_bgcolor=tooltip_bg, min_y=0, max_y=chart_max_y, min_x=0, max_x=11, expand=True, horizontal_grid_lines=ft.ChartGridLines(color="#F0F0F0", width=1, dash_pattern=[5, 5]), animate=None)
+    line_chart = ft.LineChart(data_series=[ft.LineChartData(data_points=[], stroke_width=5, color=col_primary, curved=True, stroke_cap_round=True, below_line_gradient=ft.LinearGradient(begin=ft.alignment.top_center, end=ft.alignment.bottom_center, colors=[col_primary_50, transparent_white])), ft.LineChartData(data_points=[], stroke_width=5, color=col_secondary, curved=True, stroke_cap_round=True, below_line_gradient=ft.LinearGradient(begin=ft.alignment.top_center, end=ft.alignment.bottom_center, colors=[col_secondary_50, transparent_white]))], border=ft.border.all(0, "transparent"), bottom_axis=ft.ChartAxis(labels=[ft.ChartAxisLabel(value=i, label=ft.Text(m, size=12, color="onSurfaceVariant")) for i, m in enumerate(["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"])], labels_size=30), left_axis=ft.ChartAxis(labels=get_y_axis_labels(chart_max_y), labels_size=40), tooltip_bgcolor=tooltip_bg, min_y=0, max_y=chart_max_y, min_x=0, max_x=11, expand=True, horizontal_grid_lines=ft.ChartGridLines(color="outlineVariant", width=1, dash_pattern=[5, 5]), animate=None)
 
     def draw_snake_chart(year):
         """Yılan grafiğini çizen fonksiyon - yıl parametresi int veya str olabilir"""
@@ -1565,91 +1636,35 @@ def main(page: ft.Page):
     state["update_callbacks"]["home_page"] = refresh_charts_and_data
 
     # ------------------------------------------------------------------------
-    # SIDEBAR BİLEŞENLERİ (Sidebar Components)
+    # TOPBAR BİLEŞENLERİ (TopBar Components)
     # ------------------------------------------------------------------------
-    class SidebarButton(ft.Container):
-        def __init__(self, icon_name, text, page_name, is_selected=False):
+    class TopBarTab(ft.Container):
+        def __init__(self, text, page_name, is_selected=False):
             super().__init__()
             self.data = page_name
             self.is_selected = is_selected
-            self.icon_name = icon_name  # İkon adını sakla
-            self.width = 50
-            self.height = 50
-            self.border_radius = 12
-            self.padding = 0
-            self.alignment = ft.alignment.center
-            self.animate = ft.Animation(200, "easeOut") 
-            # Başlangıç rengi - seçili ise beyaz, değilse koyu gri
-            initial_color = col_white if is_selected else "#374151"
-            # İKİ AYRI IKON OLUŞTUR
-            self.icon_expanded = ft.Icon(icon_name, size=24, color=initial_color)
-            self.icon_collapsed = ft.Icon(icon_name, size=24, color=initial_color)
-            self.text_control = ft.Text(text, size=15, weight="w600", visible=state["sidebar_expanded"], color=initial_color)
-            self.content_row = ft.Row([self.icon_expanded, self.text_control], spacing=15, alignment=ft.MainAxisAlignment.START, visible=state["sidebar_expanded"])
-            self.content_icon_only = ft.Container(content=self.icon_collapsed, alignment=ft.alignment.center, visible=not state["sidebar_expanded"])
-            self.content = ft.Stack([self.content_row, self.content_icon_only])
+            self.padding = ft.padding.symmetric(horizontal=20, vertical=10)
+            self.border_radius = ft.border_radius.only(top_left=8, top_right=8)
+            self.animate = ft.Animation(200, "easeOut")
+            
+            self.text_control = ft.Text(text, size=14, weight="bold")
+            self.content = self.text_control
             self.update_visuals(run_update=False)
 
         def update_visuals(self, run_update=True):
-            self.text_control.visible = state["sidebar_expanded"]
-            self.content_row.visible = state["sidebar_expanded"]
-            self.content_icon_only.visible = not state["sidebar_expanded"]
-            self.width = 220 if state["sidebar_expanded"] else 50
-            self.padding = ft.padding.only(left=15) if state["sidebar_expanded"] else 0
-            self.alignment = ft.alignment.center_left if state["sidebar_expanded"] else ft.alignment.center
-            
-            # --- STANDART KURAL ---
             if self.is_selected:
-                self.bgcolor = col_primary
-                new_color = col_white
-                self.shadow = ft.BoxShadow(blur_radius=10, color=col_primary_50, offset=ft.Offset(0, 4))
+                self.bgcolor = "surface" # Active tab matches content background
+                self.text_control.color = "primary"
+                self.border = ft.border.only(top=ft.border.BorderSide(3, "primary"))
             else:
-                self.bgcolor = "transparent"  # Şeffaf arka plan
-                new_color = "#374151"  # Daha koyu gri - neredeyse siyah
-                self.shadow = None
+                self.bgcolor = "transparent"
+                self.text_control.color = "onSurfaceVariant"
+                self.border = None
             
-            # Her iki ikonu da güncelle
-            self.icon_expanded.color = new_color
-            self.icon_collapsed.color = new_color
-            self.text_control.color = new_color
-                
             if run_update: self.update()
 
-    def toggle_sidebar(e):
-        state["sidebar_expanded"] = not state["sidebar_expanded"]
-        sidebar_container.width = 260 if state["sidebar_expanded"] else 90
-        logo_column.visible = state["sidebar_expanded"]
-        menu_row.alignment = ft.MainAxisAlignment.START if state["sidebar_expanded"] else ft.MainAxisAlignment.CENTER
-        
-        # Nested Column yapısında butonları güncelle
-        for col in sidebar_column.controls:
-            if isinstance(col, ft.Column):
-                for btn in col.controls:
-                    if isinstance(btn, SidebarButton):
-                        # Önce görünürlük ayarlarını güncelle
-                        btn.text_control.visible = state["sidebar_expanded"]
-                        btn.content_row.visible = state["sidebar_expanded"]
-                        btn.content_icon_only.visible = not state["sidebar_expanded"]
-                        btn.width = 220 if state["sidebar_expanded"] else 50
-                        btn.padding = ft.padding.only(left=15) if state["sidebar_expanded"] else 0
-                        btn.alignment = ft.alignment.center_left if state["sidebar_expanded"] else ft.alignment.center
-                        
-                        # Renkleri güncelle
-                        if btn.is_selected:
-                            btn.bgcolor = col_primary
-                            btn.icon_expanded.color = col_white
-                            btn.icon_collapsed.color = col_white
-                            btn.text_control.color = col_white
-                            btn.shadow = ft.BoxShadow(blur_radius=10, color=col_primary_50, offset=ft.Offset(0, 4))
-                        else:
-                            btn.bgcolor = "transparent"
-                            btn.icon_expanded.color = "#374151"
-                            btn.icon_collapsed.color = "#374151"
-                            btn.text_control.color = "#374151"
-                            btn.shadow = None
-                        
-                        btn.update()
-        page.update()
+    # Sidebar toggle fonksiyonu artık yok
+    # def toggle_sidebar(e): ...
 
     # ------------------------------------------------------------------------
     # DÖNEMSEL GELİR SAYFASI (Periodic Income Page)
@@ -1665,8 +1680,8 @@ def main(page: ft.Page):
             text_size=12,
             content_padding=10,
             width=95,
-            bgcolor=col_white,
-            border_color=col_border,
+            bgcolor="surface",
+            border_color="outline",
             border_radius=8
         )
         
@@ -1707,14 +1722,14 @@ def main(page: ft.Page):
             text_field = ft.TextField(
                 value="0",
                 text_size=12,
-                color=col_text,
+                color="onSurface",
                 text_align=ft.TextAlign.CENTER,
-                border_color="#E0E0E0",
-                focused_border_color=col_primary,
+                border_color="outline",
+                focused_border_color="primary",
                 height=35,
                 width=120,
                 content_padding=ft.padding.symmetric(horizontal=5, vertical=5),
-                bgcolor="#FAFAFA",
+                bgcolor="surface",
                 suffix_text=" %",
                 hint_text="0",
                 on_blur=on_tax_field_blur
@@ -1764,7 +1779,7 @@ def main(page: ft.Page):
         # Tablo container - başlangıçta field'ları ile oluştur
         table_container = ft.Container(
             expand=True,
-            bgcolor=col_white,
+            bgcolor="surface",
             padding=20,
             border_radius=12,
             shadow=ft.BoxShadow(blur_radius=10, color="#1A000000", offset=ft.Offset(0, 5)),
@@ -1814,7 +1829,7 @@ def main(page: ft.Page):
 
                             success_dlg = ft.AlertDialog(
                                 modal=True,
-                                title=ft.Text("Başarılı"),
+                                title=ft.Text(tr("success")),
                                 content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
                                 actions=[
                                     ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
@@ -1825,7 +1840,7 @@ def main(page: ft.Page):
                             success_dlg.open = True
                             page.update()
                         else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text("❌ Excel raporu oluşturulamadı!", color=col_white), bgcolor=col_danger)
+                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_report_error"), color=col_white), bgcolor=col_danger)
                             page.snack_bar.open = True
                             page.update()
 
@@ -1864,7 +1879,7 @@ def main(page: ft.Page):
 
                             success_dlg = ft.AlertDialog(
                                 modal=True,
-                                title=ft.Text("Başarılı"),
+                                title=ft.Text(tr("success")),
                                 content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
                                 actions=[
                                     ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
@@ -1875,7 +1890,7 @@ def main(page: ft.Page):
                             success_dlg.open = True
                             page.update()
                         else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text("❌ PDF raporu oluşturulamadı!", color=col_white), bgcolor=col_danger)
+                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_report_error"), color=col_white), bgcolor=col_danger)
                             page.snack_bar.open = True
                             page.update()
 
@@ -1996,24 +2011,33 @@ def main(page: ft.Page):
             
             return monthly_results, quarterly_results, summary
         
-        right_buttons = ft.Container(
-            padding=ft.padding.only(right=40),
-            content=ft.Row([
-                ScaleButton("table_view", "#217346", "Excel", width=45, height=40, on_click=export_to_excel_donemsel),
-                ScaleButton("picture_as_pdf", "#D32F2F", "PDF", width=45, height=40, on_click=export_to_pdf_donemsel),
-            ], spacing=8)
-        )
+        # Helper for styled icon buttons
+        def create_styled_icon_button(icon, color, tooltip, on_click):
+            return ft.Container(
+                content=ft.IconButton(icon=icon, tooltip=tooltip, icon_color="white", on_click=on_click),
+                bgcolor=color,
+                border_radius=8,
+                shadow=ft.BoxShadow(blur_radius=2, color="shadow", offset=ft.Offset(0, 1)),
+                width=40,
+                height=40,
+                alignment=ft.alignment.center
+            )
+
+        btn_excel = create_styled_icon_button(ft.Icons.TABLE_VIEW, "#217346", tr("export_excel"), export_to_excel_donemsel)
+        btn_pdf = create_styled_icon_button(ft.Icons.PICTURE_AS_PDF, "#D32F2F", tr("export_pdf"), export_to_pdf_donemsel)
+        
+        report_controls = ft.Row([btn_excel, btn_pdf], spacing=8)
+        state["report_controls"] = report_controls
 
         top_bar = ft.Row([
             ft.Container(height=38, content=year_dropdown),
-            right_buttons
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
 
         return ft.Container(
             alignment=ft.alignment.top_center,
             padding=30,
             content=ft.Column([
-                ft.Row([ft.Text("Dönemsel ve Yıllık Gelir", size=26, weight="bold", color=col_text)]),
+                ft.Row([ft.Text(tr("reports_title"), size=26, weight="bold", color="onBackground")]),
                 ft.Container(height=15),
                 ft.Container(content=top_bar),
                 ft.Container(height=15),
@@ -2041,18 +2065,18 @@ def main(page: ft.Page):
                     e.control.update()
         
         # Input alanları önce tanımlanmalı (update_selected_count bunları kullanacak)
-        input_fatura_no = ft.TextField(hint_text="FAT-2025...", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
-        input_tarih = ft.TextField(hint_text="ggaayy veya gg.aa.yyyy (örn. 121225)", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12), on_blur=on_tarih_blur)
-        input_firma = ft.TextField(hint_text="Firma seçiniz...", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
-        input_malzeme = ft.TextField(hint_text="Ürün giriniz...", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
-        input_miktar = ft.TextField(hint_text="0", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
-        input_tutar = ft.TextField(hint_text="0.00", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
-        input_para_birimi = ft.Dropdown(options=[ft.dropdown.Option("TL"), ft.dropdown.Option("USD"), ft.dropdown.Option("EUR")], text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=5), hint_text="TL", hint_style=ft.TextStyle(color="#D0D0D0", size=12), value="TL")
-        input_kdv = ft.TextField(hint_text="Varsayılan (%)20", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_fatura_no = ft.TextField(hint_text=tr("invoice_hint"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_tarih = ft.TextField(hint_text=tr("date_hint"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12), on_blur=on_tarih_blur)
+        input_firma = ft.TextField(hint_text=tr("company_hint"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_malzeme = ft.TextField(hint_text=tr("item_hint"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_miktar = ft.TextField(hint_text=tr("amount_hint"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_tutar = ft.TextField(hint_text=tr("total_hint"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_para_birimi = ft.Dropdown(options=[ft.dropdown.Option("TL"), ft.dropdown.Option("USD"), ft.dropdown.Option("EUR")], text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=5), hint_text=tr("hint_tl"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), value="TL")
+        input_kdv = ft.TextField(hint_text=tr("default_vat"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
         
         # Manuel döviz kuru girişi (opsiyonel)
-        input_usd_kur = ft.TextField(hint_text="Opsiyonel (TCMB)", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
-        input_eur_kur = ft.TextField(hint_text="Opsiyonel (TCMB)", hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color=col_text, border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_usd_kur = ft.TextField(hint_text=tr("optional_tcmb"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
+        input_eur_kur = ft.TextField(hint_text=tr("optional_tcmb"), hint_style=ft.TextStyle(color="#D0D0D0", size=12), text_size=13, color="onBackground", border_color="transparent", bgcolor="transparent", content_padding=ft.padding.only(left=10, bottom=12))
         
         def update_selected_count(e=None):
             """Seçili fatura sayısını güncelle ve tek seçimde inputları doldur"""
@@ -2120,7 +2144,7 @@ def main(page: ft.Page):
             expand=True,
             border_radius=12, 
             shadow=ft.BoxShadow(blur_radius=15, color="#1A000000", offset=ft.Offset(0, 5)), 
-            bgcolor=col_white, 
+            bgcolor="surface", 
             content=create_invoice_table_content("newest", state.get("invoice_type", "income"), on_select_changed=update_selected_count)
         )
 
@@ -2150,7 +2174,7 @@ def main(page: ft.Page):
             # Buton görünümünü güncelle
             active_color = col_secondary if is_expense else col_primary
             btn_container = e.control
-            btn_container.content.controls[0].value = "Gelen Faturalar (Gider)" if is_expense else "Giden Faturalar (Gelir)"
+            btn_container.content.controls[0].value = tr("incoming_invoices") if is_expense else tr("outgoing_invoices")
             btn_container.bgcolor = active_color
             btn_container.shadow.color = col_secondary_50 if is_expense else col_primary_50
             btn_container.update()
@@ -2165,7 +2189,7 @@ def main(page: ft.Page):
         # Başlangıç durumuna göre buton ayarla (state başlangıçta "income")
         initial_is_expense = state.get("invoice_type", "income") == "expense"
         initial_color = col_secondary if initial_is_expense else col_primary
-        initial_text = "Gelen Faturalar (Gider)" if initial_is_expense else "Giden Faturalar (Gelir)"
+        initial_text = tr("incoming_invoices") if initial_is_expense else tr("outgoing_invoices")
         initial_shadow = col_secondary_50 if initial_is_expense else col_primary_50
         
         type_toggle_btn = ft.Container(
@@ -2261,15 +2285,15 @@ def main(page: ft.Page):
                         if state["update_callbacks"]["transaction_history"]:
                             state["update_callbacks"]["transaction_history"]()
                         
-                        page.snack_bar = ft.SnackBar(content=ft.Text("✅ Fatura başarıyla eklendi!", color=col_white), bgcolor=col_success)
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_invoice_added"), color=col_white), bgcolor=col_success)
                         page.snack_bar.open = True
                         page.update()
                     else:
-                        page.snack_bar = ft.SnackBar(content=ft.Text("❌ Fatura eklenemedi!", color=col_white), bgcolor=col_danger)
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_invoice_add_error"), color=col_white), bgcolor=col_danger)
                         page.snack_bar.open = True
                         page.update()
                 else:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("❌ Geçersiz fatura verisi! Tutar giriniz.", color=col_white), bgcolor=col_danger)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_invalid_data"), color=col_white), bgcolor=col_danger)
                     page.snack_bar.open = True
                     page.update()
                     
@@ -2291,13 +2315,13 @@ def main(page: ft.Page):
                                 selected_rows.append(row)
                 
                 if not selected_rows:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("⚠️ Güncellemek için bir fatura seçin!", color=col_white), bgcolor=col_secondary)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_select_to_update"), color=col_white), bgcolor=col_secondary)
                     page.snack_bar.open = True
                     page.update()
                     return
                 
                 if len(selected_rows) > 1:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("⚠️ Sadece bir fatura seçin!", color=col_white), bgcolor=col_secondary)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_select_one"), color=col_white), bgcolor=col_secondary)
                     page.snack_bar.open = True
                     page.update()
                     return
@@ -2354,15 +2378,15 @@ def main(page: ft.Page):
                         if state["update_callbacks"]["transaction_history"]:
                             state["update_callbacks"]["transaction_history"]()
                         
-                        page.snack_bar = ft.SnackBar(content=ft.Text("✅ Fatura güncellendi!", color=col_white), bgcolor=col_success)
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_invoice_updated"), color=col_white), bgcolor=col_success)
                         page.snack_bar.open = True
                         page.update()
                     else:
-                        page.snack_bar = ft.SnackBar(content=ft.Text("❌ Güncelleme başarısız!", color=col_white), bgcolor=col_danger)
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_update_error"), color=col_white), bgcolor=col_danger)
                         page.snack_bar.open = True
                         page.update()
                 else:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("❌ Geçersiz fatura verisi!", color=col_white), bgcolor=col_danger)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_invalid_data"), color=col_white), bgcolor=col_danger)
                     page.snack_bar.open = True
                     page.update()
                     
@@ -2386,7 +2410,7 @@ def main(page: ft.Page):
                 
                 
                 if not selected_rows:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("⚠️ Lütfen silmek için en az bir fatura seçin!", color=col_white), bgcolor=col_secondary)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_select_to_delete"), color=col_white), bgcolor=col_secondary)
                     page.snack_bar.open = True
                     page.update()
                     return
@@ -2457,16 +2481,16 @@ def main(page: ft.Page):
                         
                         # Bildirim göster
                         if deleted_count > 0:
-                            message = f"✅ {deleted_count} fatura silindi!"
+                            message = tr("msg_deleted_count").format(deleted_count)
                             if failed_count > 0:
-                                message += f" ({failed_count} başarısız)"
+                                message += f" ({failed_count} {tr('error')})"
                             page.snack_bar = ft.SnackBar(
                                 content=ft.Text(message, color=col_white),
                                 bgcolor=col_success
                             )
                         else:
                             page.snack_bar = ft.SnackBar(
-                                content=ft.Text("❌ Hiçbir fatura silinemedi!", color=col_white),
+                                content=ft.Text(tr("msg_delete_error"), color=col_white),
                                 bgcolor=col_danger
                             )
                         page.snack_bar.open = True
@@ -2474,25 +2498,25 @@ def main(page: ft.Page):
                         
                     except Exception as ex:
                         page.snack_bar = ft.SnackBar(
-                            content=ft.Text(f"❌ Silme hatası: {str(ex)}", color=col_white),
+                            content=ft.Text(f"❌ {tr('error')}: {str(ex)}", color=col_white),
                             bgcolor=col_danger
                         )
                         page.snack_bar.open = True
                         page.update()
 
                 # Mesajı belirle
-                msg = f"Seçili {selected_count} faturayı silmek istediğinize emin misiniz?"
+                msg = tr("delete_confirm_msg_multi").format(selected_count)
                 if selected_count == 1:
-                    msg = "Seçili faturayı silmek istediğinize emin misiniz?"
+                    msg = tr("delete_confirm_msg_single")
 
                 # Dialog oluştur ve göster
                 dlg_modal = ft.AlertDialog(
                     modal=True,
-                    title=ft.Text("Silme Onayı"),
+                    title=ft.Text(tr("delete_confirm_title")),
                     content=ft.Text(msg),
                     actions=[
-                        ft.ElevatedButton("Evet", on_click=confirm_delete, bgcolor=col_success, color=col_white),
-                        ft.ElevatedButton("Hayır", on_click=close_dlg, bgcolor=col_danger, color=col_white),
+                        ft.ElevatedButton(tr("yes"), on_click=confirm_delete, bgcolor=col_success, color=col_white),
+                        ft.ElevatedButton(tr("no"), on_click=close_dlg, bgcolor=col_danger, color=col_white),
                     ],
                     actions_alignment=ft.MainAxisAlignment.END,
                 )
@@ -2545,7 +2569,7 @@ def main(page: ft.Page):
                                     # Sonuç yoksa dialogu kapat ve uyarı ver
                                     progress_dialog.open = False
                                     page.snack_bar = ft.SnackBar(
-                                        content=ft.Text("❌ Klasörde işlenebilir dosya bulunamadı veya işlem başarısız!", color=col_white),
+                                        content=ft.Text(tr("msg_qr_no_files"), color=col_white),
                                         bgcolor=col_danger
                                     )
                                     page.snack_bar.open = True
@@ -2566,15 +2590,16 @@ def main(page: ft.Page):
                                     time_str = f"{int(elapsed // 60)} dk {int(elapsed % 60)} sn"
                                 
                                 # Dialog içeriğini güncelle (Kapatma)
-                                progress_dialog.title = ft.Text("İşlem Tamamlandı", weight="bold")
+                                progress_dialog.title = ft.Text(tr("process_completed"), weight="bold")
                                 
+                                type_str = tr("income") if selected_type == 'outgoing' else tr("expense")
                                 summary_text = (
-                                    f"Toplam Dosya: {summary['total']}\n"
-                                    f"Başarılı: {summary['added']}\n"
-                                    f"Başarısız: {summary['failed']}\n"
-                                    f"Mükerrer (Atlanan): {summary['skipped_duplicates']}\n"
-                                    f"İşlem Tipi: {'GELİR' if selected_type == 'outgoing' else 'GIDER'}\n"
-                                    f"İşlem Süresi: {time_str}"
+                                    f"{tr('summary_total').format(summary['total'])}\n"
+                                    f"{tr('summary_success').format(summary['added'])}\n"
+                                    f"{tr('summary_failed').format(summary['failed'])}\n"
+                                    f"{tr('summary_duplicates').format(summary['skipped_duplicates'])}\n"
+                                    f"{tr('summary_type').format(type_str)}\n"
+                                    f"{tr('summary_time').format(time_str)}"
                                 )
                                 
                                 def close_dlg(e):
@@ -2585,10 +2610,10 @@ def main(page: ft.Page):
                                     width=450,
                                     height=180,
                                     content=ft.Column([
-                                        ft.Text(summary_text, size=15, color=col_text),
+                                        ft.Text(summary_text, size=15, color="onBackground"),
                                         ft.Container(height=20),
                                         ft.Row([
-                                            ft.ElevatedButton("Tamam", on_click=close_dlg, bgcolor=col_primary, color=col_white)
+                                            ft.ElevatedButton(tr("ok"), on_click=close_dlg, bgcolor=col_primary, color=col_white)
                                         ], alignment=ft.MainAxisAlignment.END)
                                     ])
                                 )
@@ -2606,7 +2631,7 @@ def main(page: ft.Page):
                                 
                                 progress_dialog.open = False
                                 page.snack_bar = ft.SnackBar(
-                                    content=ft.Text(f"QR isleme hatasi: {str(ex)}", color=col_white),
+                                    content=ft.Text(tr("qr_error_prefix").format(str(ex)), color=col_white),
                                     bgcolor=col_danger,
                                     duration=5000
                                 )
@@ -2615,11 +2640,11 @@ def main(page: ft.Page):
 
                         # İlerleme dialogu ve callback tanımları
                         progress_bar = ft.ProgressBar(width=400, value=0)
-                        progress_text = ft.Text("QR kodları okunuyor...", size=14, color=col_text)
+                        progress_text = ft.Text(tr("reading_qr_codes"), size=14, color="onBackground")
                         
                         progress_dialog = ft.AlertDialog(
                             modal=True,
-                            title=ft.Text("QR Kod İşleme", weight="bold"),
+                            title=ft.Text(tr("qr_processing_title"), weight="bold"),
                             content=ft.Container(
                                 width=450,
                                 height=120,
@@ -2665,12 +2690,12 @@ def main(page: ft.Page):
                                 padding=20,
                                 bgcolor="#1A1D1F", # col_dark yerine hardcoded, col_dark tanımlı olmayabilir
                                 content=ft.Column([
-                                    ft.Text("Fatura Tipi Seçin", size=20, weight="bold", color=col_white),
+                                    ft.Text(tr("select_invoice_type"), size=20, weight="bold", color=col_white),
                                     ft.Container(height=10),
                                     ft.ElevatedButton(
                                         content=ft.Row([
                                             ft.Icon(ft.Icons.ARROW_DOWNWARD, color=col_white),
-                                            ft.Text("GELİR (Satış Faturası)", color=col_white, size=16)
+                                            ft.Text(tr("income_sales_invoice"), color=col_white, size=16)
                                         ], tight=True),
                                         on_click=lambda _: on_type_selected('outgoing', bs),
                                         bgcolor=col_success,
@@ -2681,7 +2706,7 @@ def main(page: ft.Page):
                                     ft.ElevatedButton(
                                         content=ft.Row([
                                             ft.Icon(ft.Icons.ARROW_UPWARD, color=col_white),
-                                            ft.Text("GİDER (Alış Faturası)", color=col_white, size=16)
+                                            ft.Text(tr("expense_purchase_invoice"), color=col_white, size=16)
                                         ], tight=True),
                                         on_click=lambda _: on_type_selected('incoming', bs),
                                         bgcolor=col_danger,
@@ -2690,7 +2715,7 @@ def main(page: ft.Page):
                                     ),
                                     ft.Container(height=10),
                                     ft.TextButton(
-                                        "İptal",
+                                        tr("cancel"),
                                         on_click=lambda _: (setattr(bs, 'open', False), page.update())
                                     )
                                 ], horizontal_alignment=ft.CrossAxisAlignment.CENTER, tight=True, spacing=0)
@@ -2745,7 +2770,7 @@ def main(page: ft.Page):
 
                             success_dlg = ft.AlertDialog(
                                 modal=True,
-                                title=ft.Text("Yedekleme Başarılı"),
+                                title=ft.Text(tr("backup_success_title")),
                                 content=ft.Text(msg),
                                 actions=[
                                     ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
@@ -2783,7 +2808,7 @@ def main(page: ft.Page):
                 )
                 
                 if not invoices:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("❌ Dışa aktarılacak fatura bulunamadı!", color=col_white), bgcolor=col_danger)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_invoices_export"), color=col_white), bgcolor=col_danger)
                     page.snack_bar.open = True
                     page.update()
                     return
@@ -2805,7 +2830,7 @@ def main(page: ft.Page):
 
                             success_dlg = ft.AlertDialog(
                                 modal=True,
-                                title=ft.Text("Başarılı"),
+                                title=ft.Text(tr("success")),
                                 content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
                                 actions=[
                                     ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
@@ -2816,7 +2841,7 @@ def main(page: ft.Page):
                             success_dlg.open = True
                             page.update()
                         else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text("❌ Excel aktarımı başarısız!", color=col_white), bgcolor=col_danger)
+                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_export_error"), color=col_white), bgcolor=col_danger)
                             page.snack_bar.open = True
                             page.update()
 
@@ -2848,7 +2873,7 @@ def main(page: ft.Page):
                 )
                 
                 if not invoices:
-                    page.snack_bar = ft.SnackBar(content=ft.Text("❌ Dışa aktarılacak fatura bulunamadı!", color=col_white), bgcolor=col_danger)
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_invoices_export"), color=col_white), bgcolor=col_danger)
                     page.snack_bar.open = True
                     page.update()
                     return
@@ -2869,7 +2894,7 @@ def main(page: ft.Page):
 
                             success_dlg = ft.AlertDialog(
                                 modal=True,
-                                title=ft.Text("Başarılı"),
+                                title=ft.Text(tr("success")),
                                 content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
                                 actions=[
                                     ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
@@ -2880,7 +2905,7 @@ def main(page: ft.Page):
                             success_dlg.open = True
                             page.update()
                         else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text("❌ PDF aktarımı başarısız!", color=col_white), bgcolor=col_danger)
+                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_export_error"), color=col_white), bgcolor=col_danger)
                             page.snack_bar.open = True
                             page.update()
 
@@ -2899,68 +2924,109 @@ def main(page: ft.Page):
                 page.snack_bar.open = True
                 page.update()
 
-        # Butonları oluştur
-        btn_clear = AestheticButton("Yeni / Temizle", "refresh", "#7F8C8D", width=145, on_click=clear_inputs)
-        btn_add = AestheticButton("Ekle", "add", col_success, width=110, on_click=add_invoice)
-        btn_update = AestheticButton("Güncelle", "update", col_blue_donut, width=125, on_click=update_invoice)
+        # Helper for styled icon buttons
+        def create_styled_icon_button(icon, color, tooltip, on_click):
+            return ft.Container(
+                content=ft.IconButton(icon=icon, tooltip=tooltip, icon_color="white", on_click=on_click),
+                bgcolor=color,
+                border_radius=8,
+                shadow=ft.BoxShadow(blur_radius=2, color="shadow", offset=ft.Offset(0, 1)),
+                width=40,
+                height=40,
+                alignment=ft.alignment.center
+            )
+
+        # Butonları oluştur - Daha kompakt tasarım
+        btn_clear = create_styled_icon_button(ft.Icons.REFRESH, "#7F8C8D", tr("clear"), clear_inputs)
+        btn_add = create_styled_icon_button(ft.Icons.ADD_CIRCLE, col_success, tr("add"), add_invoice)
+        btn_update = create_styled_icon_button(ft.Icons.UPDATE, col_blue_donut, tr("update"), update_invoice)
         
         # Sil butonu - seçili sayı ile
+        btn_delete = create_styled_icon_button(ft.Icons.DELETE, col_danger, tr("delete"), delete_invoice)
         btn_delete_container = ft.Row([
-            AestheticButton("Sil", "delete", col_danger, width=110, on_click=delete_invoice),
+            btn_delete,
             selected_count_text
         ], spacing=5, alignment=ft.MainAxisAlignment.START)
         
-        operation_buttons = ft.Row([btn_clear, btn_add, btn_update, btn_delete_container], spacing=15)
+        operation_buttons = ft.Row([btn_clear, btn_add, btn_update, btn_delete_container], spacing=8)
 
-        # Sağ üst butonlar - QR, Excel, PDF export
-        btn_qr = ScaleButton("qr_code_scanner", "#3498DB", "QR Okuma / Klasör Ekle", width=50, height=45)
-        btn_qr.on_click = process_qr_folder
+        # Sağ üst butonlar - QR, Excel, PDF export - Sadece İkon
+        btn_qr = create_styled_icon_button(ft.Icons.QR_CODE_SCANNER, "#3498DB", tr("qr_scan"), process_qr_folder)
+        btn_excel = create_styled_icon_button(ft.Icons.TABLE_VIEW, "#217346", tr("export_excel"), export_to_excel)
+        btn_pdf = create_styled_icon_button(ft.Icons.PICTURE_AS_PDF, "#D32F2F", tr("export_pdf"), export_to_pdf)
         
-        btn_excel = ScaleButton("table_view", "#217346", "Excel Olarak İndir", width=50, height=45)
-        btn_excel.on_click = export_to_excel
+        right_buttons_row = ft.Row([btn_qr, btn_excel, btn_pdf], spacing=8)
         
-        btn_pdf = ScaleButton("picture_as_pdf", "#D32F2F", "PDF Olarak İndir", width=50, height=45)
-        btn_pdf.on_click = export_to_pdf
-        
-        right_buttons_row = ft.Row([btn_qr, btn_excel, btn_pdf], spacing=10)
-        
-        right_buttons_container = ft.Container(content=right_buttons_row, padding=ft.padding.only(right=25))
+        # Sıralama - Daha kompakt
+        sort_dropdown = ft.Container(
+            content=ft.Dropdown(
+                options=[ft.dropdown.Option("newest", tr("sort_newest")), ft.dropdown.Option("date_desc", tr("sort_date_desc")), ft.dropdown.Option("date_asc", tr("sort_date_asc"))], 
+                value="newest", 
+                on_change=on_sort_change, 
+                width=80, 
+                text_size=12, 
+                content_padding=5, 
+                bgcolor="transparent", 
+                border_color="transparent",
+                hint_text=tr("sort")
+            ),
+            bgcolor="surface",
+            border_radius=8,
+            border=ft.border.all(1, "outlineVariant"),
+            shadow=ft.BoxShadow(blur_radius=2, color="shadow", offset=ft.Offset(0, 1)),
+            height=40,
+            alignment=ft.alignment.center
+        )
 
-        sort_dropdown = ft.Container(padding=ft.padding.only(left=20), content=ft.Dropdown(options=[ft.dropdown.Option("newest", "Son Eklenen"), ft.dropdown.Option("date_desc", "Yeniden Eskiye"), ft.dropdown.Option("date_asc", "Eskiden Yeniye")], value="newest", on_change=on_sort_change, width=160, text_size=13, label="Sıralama", border_radius=10, content_padding=10, bgcolor=col_white, border_color=col_border))
+        # Backup butonu - Sadece İkon
+        btn_backup = create_styled_icon_button(ft.Icons.BACKUP, "#8E44AD", tr("backup_db"), backup_database)
 
-        # Backup butonu
-        btn_backup = ScaleButton("backup", "#8E44AD", "Veritabanını Yedekle", width=50, height=45)
-        btn_backup.on_click = backup_database
-
-        controls_row = ft.Row([type_toggle_btn, sort_dropdown, btn_backup, ft.Container(expand=True), right_buttons_container], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER)
+        # Tüm kontrolleri tek bir satırda topla
+        controls_row = ft.Row([
+            type_toggle_btn, 
+            ft.VerticalDivider(width=10, color="outline"),
+            operation_buttons,
+            ft.VerticalDivider(width=10, color="outline"),
+            sort_dropdown, 
+            btn_backup, 
+            ft.VerticalDivider(width=10, color="outline"),
+            right_buttons_row
+        ], alignment=ft.MainAxisAlignment.START, vertical_alignment=ft.CrossAxisAlignment.CENTER, spacing=8)
 
         # Input satırları - TextField referanslarını kullan
         input_line_1 = ft.Row([
-            ft.Column([ft.Text("Fatura No", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_fatura_no, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("Tarih", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_tarih, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("Firma", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_firma, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("Malzeme/Hizmet", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_malzeme, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1)
+            ft.Column([ft.Text(tr("invoice_no"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_fatura_no, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("date"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_tarih, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("company"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_firma, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("item_service"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_malzeme, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1)
         ], spacing=15)
         
         input_line_2 = ft.Row([
-            ft.Column([ft.Text("Miktar", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_miktar, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("Tutar", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_tutar, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("Para Birimi", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_para_birimi, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("KDV Tutarı", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_kdv, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1)
+            ft.Column([ft.Text(tr("amount"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_miktar, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("total"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_tutar, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("currency"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_para_birimi, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("vat_amount"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_kdv, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1)
         ], spacing=15)
         
         # Manuel döviz kuru satırı (opsiyonel)
         input_line_3 = ft.Row([
-            ft.Column([ft.Text("USD Kuru (1 USD = ? TL)", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_usd_kur, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
-            ft.Column([ft.Text("EUR Kuru (1 EUR = ? TL)", size=12, weight="w500", color=col_text_secondary), ft.Container(content=input_eur_kur, bgcolor=col_card, border_radius=6, height=42, border=ft.border.all(1, "#E0E0E0"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("usd_rate_label"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_usd_kur, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
+            ft.Column([ft.Text(tr("eur_rate_label"), size=12, weight="w500", color="onSurfaceVariant"), ft.Container(content=input_eur_kur, bgcolor="surface", border_radius=6, height=42, border=ft.border.all(1, "outline"))], spacing=5, expand=1),
             ft.Container(expand=3)  # Boş alan
         ], spacing=15)
 
+        # Save controls for TopBar - Tek bir container olarak kaydet
+        state["invoice_controls"] = controls_row
+        state["invoice_operations"] = None # Artık controls_row içinde
+
         return ft.Container(alignment=ft.alignment.top_center, padding=30, content=ft.Column([
-            ft.Row([ft.Text("Fatura Yönetimi", size=28, weight="bold", color=col_text)]),
-            ft.Container(height=15), ft.Container(content=controls_row), ft.Container(height=20),
+            ft.Row([ft.Text(tr("invoices_title"), size=28, weight="bold", color="onBackground")]),
+            ft.Container(height=15), 
+            # ft.Container(content=controls_row), # Moved to TopBar
+            ft.Container(height=20),
             ft.Container(content=ft.Column([input_line_1, ft.Container(height=5), input_line_2, ft.Container(height=5), input_line_3], spacing=10)),
-            ft.Container(height=10), ft.Container(content=operation_buttons, alignment=ft.alignment.center_left, padding=ft.padding.only(left=15)),
+            ft.Container(height=10), 
+            # ft.Container(content=operation_buttons, alignment=ft.alignment.center_left, padding=ft.padding.only(left=15)), # Moved to TopBar
             ft.Container(height=20),
             table_container, 
             ft.Container(height=50), 
@@ -2983,14 +3049,32 @@ def main(page: ft.Page):
         
         state["current_page"] = clicked_btn_data
         
-        # Nested Column yapısında butonları güncelle
-        for col in sidebar_column.controls:
-            if isinstance(col, ft.Column):
-                for btn in col.controls:
-                    if isinstance(btn, SidebarButton):
-                        btn.is_selected = (btn.data == clicked_btn_data)
-                        btn.update_visuals()
+        # Tabları güncelle
+        for tab in top_bar_tabs.controls:
+            if isinstance(tab, TopBarTab):
+                tab.is_selected = (tab.data == clicked_btn_data)
+                tab.update_visuals()
         
+        # Dynamic Controls
+        if clicked_btn_data == "faturalar":
+            if "invoice_controls" in state:
+                dynamic_controls_container.controls = [state["invoice_controls"]]
+        elif clicked_btn_data == "raporlar":
+            if "report_controls" in state:
+                dynamic_controls_container.controls = [state["report_controls"]]
+        else:
+            dynamic_controls_container.controls = []
+        dynamic_controls_container.update()
+        
+        # Language Button Visibility
+        try:
+            lang_btn.visible = (clicked_btn_data == "home")
+            lang_btn.update()
+        except UnboundLocalError:
+            pass # Should not happen in event callback
+        except NameError:
+            pass
+
         if clicked_btn_data == "home":
             content_area.content = dashboard_content
             # Ana sayfa yüklendiğinde verileri güncelle - Animasyondan ÖNCE
@@ -3013,61 +3097,129 @@ def main(page: ft.Page):
         content_area.update()
 
     
-    logo_text = ft.Text("Excellent", size=24, weight="bold", color=col_text)
-    logo_text2 = ft.Text("with Rust", size=10, weight="normal", color=col_text)
-    menu_icon = ft.IconButton(icon="menu", icon_color=col_text, on_click=toggle_sidebar)
-    logo_column = ft.Column([logo_text, logo_text2], spacing=0, visible=False, alignment=ft.MainAxisAlignment.CENTER)
-    menu_row = ft.Row([menu_icon, logo_column], spacing=5, alignment=ft.MainAxisAlignment.CENTER)
+    # Logo
+    logo_text = ft.Text("Excellent", size=24, weight="bold", color="onBackground")
+    logo_area = ft.Row([ft.Image(src="logo.png", width=40, height=40, fit=ft.ImageFit.CONTAIN), logo_text], spacing=10)
 
-    btn_home = SidebarButton("home_rounded", "Giriş", "home", False)  # Başlangıçta False
-    btn_faturalar = SidebarButton("receipt_long_rounded", "Faturalar", "faturalar")
-    btn_raporlar = SidebarButton("bar_chart_rounded", "Raporlar", "raporlar")
+    # Tabs
+    btn_home = TopBarTab(tr("nav_home"), "home", True)
+    btn_faturalar = TopBarTab(tr("nav_invoices"), "faturalar")
+    btn_raporlar = TopBarTab(tr("nav_reports"), "raporlar")
     btn_home.on_click = change_view
     btn_faturalar.on_click = change_view
     btn_raporlar.on_click = change_view
     
-    # Ev butonunu başlangıçta seçili yap
-    btn_home.is_selected = True
-    btn_home.update_visuals(run_update=False)
+    top_bar_tabs = ft.Row([btn_home, btn_faturalar, btn_raporlar], spacing=5)
 
-    # Sidebar'ı MainAxisAlignment.SPACE_BETWEEN ile düzenle - Ayarlar en altta
-    sidebar_column = ft.Column([
-        ft.Column([
-            ft.Container(height=20),
-            menu_row,
-            ft.Container(height=30),
-            btn_home,
-            btn_faturalar,
-            btn_raporlar
-        ], spacing=15),
-        ft.Column([
-            ft.Container(height=20)
-        ], spacing=15)
-    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN, horizontal_alignment=ft.CrossAxisAlignment.CENTER, expand=True)
+    # Language Toggle
+    def toggle_language(e):
+        nonlocal faturalar_page, donemsel_page
+        new_lang = "en" if state["current_language"] == "tr" else "tr"
+        state["current_language"] = new_lang
+        
+        # Update button text
+        lang_btn.text = "TR" if new_lang == "en" else "EN"
+        lang_btn.tooltip = "Türkçe" if new_lang == "en" else "English"
+        
+        # Update tabs
+        btn_home.text_control.value = tr("nav_home")
+        btn_faturalar.text_control.value = tr("nav_invoices")
+        btn_raporlar.text_control.value = tr("nav_reports")
+        btn_home.update()
+        btn_faturalar.update()
+        btn_raporlar.update()
+        
+        # Recreate pages
+        faturalar_page = create_invoices_page()
+        donemsel_page = create_donemsel_page()
+        dashboard_content.content = create_dashboard_page()
+        
+        # Update current view
+        if state["current_page"] == "invoices":
+            content_area.content = faturalar_page
+        elif state["current_page"] == "donemsel":
+            content_area.content = donemsel_page
+        else:
+            content_area.content = dashboard_content
+            # Restart animations for dashboard
+            threading.Thread(target=start_animations, daemon=True).start()
+            
+        content_area.update()
+        
+        # Show restart hint
+        page.snack_bar = ft.SnackBar(content=ft.Text(tr("language_changed_msg")), bgcolor=col_primary)
+        page.snack_bar.open = True
+        page.update()
 
-    sidebar_container = ft.Container(width=90, height=900, bgcolor=col_white, padding=ft.padding.symmetric(horizontal=15, vertical=20), content=sidebar_column, animate=ft.Animation(300, "easeOut"), shadow=ft.BoxShadow(blur_radius=10, color="#05000000"))
+    lang_btn = ft.TextButton(
+        text="EN", 
+        tooltip="English",
+        on_click=toggle_language,
+        style=ft.ButtonStyle(color="onSurfaceVariant")
+    )
+
+    # Theme Toggle
+    def toggle_theme(e):
+        if page.theme_mode == ft.ThemeMode.LIGHT:
+            page.theme_mode = ft.ThemeMode.DARK
+            theme_btn.icon = ft.Icons.WB_SUNNY
+            theme_btn.tooltip = tr("light_mode")
+        elif page.theme_mode == ft.ThemeMode.DARK:
+            page.theme_mode = ft.ThemeMode.LIGHT
+            theme_btn.icon = ft.Icons.NIGHTLIGHT_ROUND
+            theme_btn.tooltip = tr("dark_mode")
+        else:
+            if page.platform_brightness == ft.Brightness.DARK:
+                page.theme_mode = ft.ThemeMode.LIGHT
+                theme_btn.icon = ft.Icons.NIGHTLIGHT_ROUND
+                theme_btn.tooltip = tr("dark_mode")
+            else:
+                page.theme_mode = ft.ThemeMode.DARK
+                theme_btn.icon = ft.Icons.WB_SUNNY
+                theme_btn.tooltip = tr("light_mode")
+        page.update()
+
+    theme_btn = ft.IconButton(
+        icon=ft.Icons.NIGHTLIGHT_ROUND, 
+        tooltip=tr("dark_mode"),
+        on_click=toggle_theme,
+        icon_color="onSurfaceVariant"
+    )
+    
+    try:
+        if page.platform_brightness == ft.Brightness.DARK:
+            theme_btn.icon = ft.Icons.WB_SUNNY
+            theme_btn.tooltip = "Açık Mod"
+    except:
+        pass
+
+    # Dynamic Controls Container - Scrollable Row for responsiveness
+    dynamic_controls_container = ft.Row(spacing=10, scroll=ft.ScrollMode.AUTO)
+
+    # Top Bar Container
+    top_bar = ft.Container(
+        content=ft.Row([
+            logo_area,
+            ft.Container(width=20), # Spacer
+            top_bar_tabs,
+            ft.Container(width=20),
+            ft.Container(content=dynamic_controls_container, expand=True), # Expand dynamic controls
+            lang_btn,
+            theme_btn
+        ], alignment=ft.MainAxisAlignment.START),
+        bgcolor="surface",
+        padding=ft.padding.symmetric(horizontal=20, vertical=5),
+        shadow=ft.BoxShadow(blur_radius=5, color="shadow"),
+        height=60
+    )
 
     # ------------------------------------------------------------------------
     # DASHBOARD İÇERİK VE YARDIMCILARI (Dashboard Content & Helpers)
     # ------------------------------------------------------------------------
     # --- DASHBOARD İÇERİK ---
-    def change_currency(currency_code):
-        state["current_currency"] = currency_code
-        currency_selector_container.content = create_currency_selector()
-        currency_selector_container.update()
-        
-        # Grafikleri ve verileri güncelle
-        refresh_charts_and_data()
-
-    def create_currency_selector():
-        curr = state["current_currency"]
-        return ft.Container(bgcolor=col_bg, border_radius=12, padding=4, content=ft.Row([currency_button("₺ TRY", "TRY", curr, change_currency), currency_button("$ USD", "USD", curr, change_currency), currency_button("€ EUR", "EUR", curr, change_currency)], spacing=0, tight=True))
-    currency_selector_container = ft.Container(content=create_currency_selector())
-
-    # Kur bilgisi text'i dinamik olarak oluştur
-    exchange_rate_text = ft.Text(get_exchange_rate_display(), size=13, color=col_text_light, weight="w600")
-    
-    header = ft.Row([ft.Text("Genel Durum Paneli", size=26, weight="bold", color=col_text), ft.Row([ft.Container(bgcolor="#EAF2F8", padding=ft.padding.symmetric(horizontal=15, vertical=10), border_radius=8, content=ft.Row([ft.Icon("currency_exchange", size=16, color=col_blue_donut), exchange_rate_text], spacing=10)), currency_selector_container], spacing=20)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+    year_dropdown_ref = None
+    available_years = []
+    year_dropdown_options = []
 
     # Backend'den gerçek verileri çek
     def get_dashboard_stats(year=None):
@@ -3154,437 +3306,465 @@ def main(page: ft.Page):
                 'income_count': 0,
                 'expense_count': 0
             }
-    
-    # İstatistikleri al
-    stats = get_dashboard_stats()
-    
-    # Trend hesapla (basit - önceki aya göre %15 artış varsayımı)
-    net_profit_trend = "+15%" if stats['net_profit'] > 0 else "0%"
-    income_trend = "+4%" if stats['total_income'] > 0 else "0%"
-    expense_trend = "-2%" if stats['total_expense'] > 0 else "0%"
-    avg_trend = "+1%" if stats['monthly_avg'] > 0 else "0%"
-    
-    # Her donut için kendi max değerini hesapla (değerin %120'si, min 10K)
-    profit_max = max(abs(stats['net_profit']) * 1.2, 10000)
-    income_max = max(stats['total_income'] * 1.2, 10000)
-    expense_max = max(stats['total_expense'] * 1.2, 10000)
-    avg_max = max(stats['monthly_avg'] * 1.2, 10000)
-    
-    current_currency = state.get("current_currency", "TRY")
 
-    stats_row = ft.Row([
-        DonutStatCard("Anlık Net Kâr", "attach_money", col_blue_donut, net_profit_trend, 
-                     abs(stats['net_profit']), profit_max, format_currency(stats['net_profit'], currency=current_currency, compact=True)),
-        DonutStatCard("Toplam Gelir", "arrow_upward", col_success, income_trend, 
-                     stats['total_income'], income_max, format_currency(stats['total_income'], currency=current_currency, compact=True)),
-        DonutStatCard("Toplam Gider", "arrow_downward", col_secondary, expense_trend, 
-                     stats['total_expense'], expense_max, format_currency(stats['total_expense'], currency=current_currency, compact=True)),
-        DonutStatCard("Aylık Ortalama", "pie_chart", "#FF5B5B", avg_trend, 
-                     stats['monthly_avg'], avg_max, format_currency(stats['monthly_avg'], currency=current_currency, compact=True))
-    ], spacing=20)
-    
-    # Son işlemleri backend'den çek
-    def get_recent_transactions():
-        """Son işlem geçmişini getir"""
-        try:
-            # İşlem geçmişinden son kayıtları al
-            history_records = backend_instance.get_recent_history(limit=10)
-            return _process_history_records(history_records)
-        except Exception as e:
-            return []
-    
-    def _process_history_records(records):
-        """Geçmiş kayıtlarını transaction formatına çevirir"""
-        import re
-        transactions = []
+    def create_dashboard_page():
+        nonlocal year_dropdown_ref, available_years, year_dropdown_options
         
-        for record in records:
-            # Record yapısı: {'id': 1, 'action': 'EKLEME_GELIR', 'details': '...', 'timestamp': '...'}
+        # Donut listesini temizle (yeni oluşturulacaklar eklenecek)
+        state["donuts"] = []
+
+        def change_currency(currency_code):
+            state["current_currency"] = currency_code
+            currency_selector_container.content = create_currency_selector()
+            currency_selector_container.update()
             
-            action = record.get('action', '')
-            details = record.get('details', '')
-            timestamp = record.get('timestamp', '')
-            
-            # Action'dan işlem tipi ve fatura tipi çıkar
-            parts = action.split('_')
-            operation_type = parts[0] if len(parts) > 0 else "İŞLEM"
-            invoice_type_raw = parts[1] if len(parts) > 1 else ""
-            
-            is_income = (invoice_type_raw == 'GELIR')
-            
-            is_updated = (operation_type == 'GÜNCELLEME')
-            is_deleted = (operation_type == 'SİLME')
-            
-            # Timestamp'ten tarih ve saat çıkar (ISO format: YYYY-MM-DDTHH:MM:SS...)
+            # Grafikleri ve verileri güncelle
+            refresh_charts_and_data()
+
+        def create_currency_selector():
+            curr = state["current_currency"]
+            return ft.Container(bgcolor="background", border_radius=12, padding=4, content=ft.Row([currency_button("₺ TRY", "TRY", curr, change_currency), currency_button("$ USD", "USD", curr, change_currency), currency_button("€ EUR", "EUR", curr, change_currency)], spacing=0, tight=True))
+        currency_selector_container = ft.Container(content=create_currency_selector())
+
+        # Kur bilgisi text'i dinamik olarak oluştur
+        exchange_rate_text = ft.Text(get_exchange_rate_display(), size=13, color="onSurfaceVariant", weight="w600")
+        
+        header = ft.Row([ft.Text(tr("dashboard_title"), size=26, weight="bold", color="onBackground"), ft.Row([ft.Container(bgcolor="secondaryContainer", padding=ft.padding.symmetric(horizontal=15, vertical=10), border_radius=8, content=ft.Row([ft.Icon("currency_exchange", size=16, color="primary"), exchange_rate_text], spacing=10)), currency_selector_container], spacing=20)], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
+
+
+        
+        # İstatistikleri al
+        stats = get_dashboard_stats()
+        
+        # Trend hesapla (basit - önceki aya göre %15 artış varsayımı)
+        net_profit_trend = "+15%" if stats['net_profit'] > 0 else "0%"
+        income_trend = "+4%" if stats['total_income'] > 0 else "0%"
+        expense_trend = "-2%" if stats['total_expense'] > 0 else "0%"
+        avg_trend = "+1%" if stats['monthly_avg'] > 0 else "0%"
+        
+        # Her donut için kendi max değerini hesapla (değerin %120'si, min 10K)
+        profit_max = max(abs(stats['net_profit']) * 1.2, 10000)
+        income_max = max(stats['total_income'] * 1.2, 10000)
+        expense_max = max(stats['total_expense'] * 1.2, 10000)
+        avg_max = max(stats['monthly_avg'] * 1.2, 10000)
+        
+        current_currency = state.get("current_currency", "TRY")
+
+        stats_row = ft.Row([
+            DonutStatCard(tr("net_profit"), "attach_money", col_blue_donut, net_profit_trend, 
+                        abs(stats['net_profit']), profit_max, format_currency(stats['net_profit'], currency=current_currency, compact=True)),
+            DonutStatCard(tr("total_income"), "arrow_upward", col_success, income_trend, 
+                        stats['total_income'], income_max, format_currency(stats['total_income'], currency=current_currency, compact=True)),
+            DonutStatCard(tr("total_expense"), "arrow_downward", col_secondary, expense_trend, 
+                        stats['total_expense'], expense_max, format_currency(stats['total_expense'], currency=current_currency, compact=True)),
+            DonutStatCard(tr("monthly_avg"), "pie_chart", "#FF5B5B", avg_trend, 
+                        stats['monthly_avg'], avg_max, format_currency(stats['monthly_avg'], currency=current_currency, compact=True))
+        ], spacing=20)
+        
+        # Son işlemleri backend'den çek
+        def get_recent_transactions():
+            """Son işlem geçmişini getir"""
             try:
-                # fromisoformat bazen Z veya +00:00 ile sorun yaşayabilir, basitçe ilk 19 karakteri alalım
-                ts_clean = timestamp[:19]
-                dt = datetime.fromisoformat(ts_clean)
-                op_date = dt.strftime("%d.%m.%Y")
-                op_time = dt.strftime("%H:%M")
-                display_date = f"{op_date} {op_time}"
-            except:
-                display_date = timestamp
-                op_date = timestamp
-                op_time = ""
+                # İşlem geçmişinden son kayıtları al
+                history_records = backend_instance.get_recent_history(limit=10)
+                return _process_history_records(history_records)
+            except Exception as e:
+                return []
+        
+        def _process_history_records(records):
+            """Geçmiş kayıtlarını transaction formatına çevirir"""
+            import re
+            transactions = []
+            
+            for record in records:
+                # Record yapısı: {'id': 1, 'action': 'EKLEME_GELIR', 'details': '...', 'timestamp': '...'}
+                
+                action = record.get('action', '')
+                details = record.get('details', '')
+                timestamp = record.get('timestamp', '')
+                
+                # Action'dan işlem tipi ve fatura tipi çıkar
+                parts = action.split('_')
+                operation_type = parts[0] if len(parts) > 0 else "İŞLEM"
+                invoice_type_raw = parts[1] if len(parts) > 1 else ""
+                
+                is_income = (invoice_type_raw == 'GELIR')
+                
+                is_updated = (operation_type == 'GÜNCELLEME')
+                is_deleted = (operation_type == 'SİLME')
+                
+                # Timestamp'ten tarih ve saat çıkar (ISO format: YYYY-MM-DDTHH:MM:SS...)
+                try:
+                    # fromisoformat bazen Z veya +00:00 ile sorun yaşayabilir, basitçe ilk 19 karakteri alalım
+                    ts_clean = timestamp[:19]
+                    dt = datetime.fromisoformat(ts_clean)
+                    op_date = dt.strftime("%d.%m.%Y")
+                    op_time = dt.strftime("%H:%M")
+                    display_date = f"{op_date} {op_time}"
+                except:
+                    display_date = timestamp
+                    op_date = timestamp
+                    op_time = ""
 
-            # Details stringinden bilgileri çıkar
-            # Örnek: "Gelir fatura eklendi - Firma: ABC - Tutar: 100 TL - Tarih: 01.01.2025"
+                # Details stringinden bilgileri çıkar
+                # Örnek: "Gelir fatura eklendi - Firma: ABC - Tutar: 100 TL - Tarih: 01.01.2025"
+                
+                title = "İşlem"
+                amount_str = "0.00"
+                invoice_date = ""
+                
+                # Firma
+                firma_match = re.search(r'Firma:\s*(.*?)(?:\s-\s|$)', details)
+                if firma_match:
+                    title = firma_match.group(1)
+                
+                # Tutar
+                amount_match = re.search(r'Tutar:\s*([\d\.,]+)', details)
+                if amount_match:
+                    amount_str = amount_match.group(1)
+                
+                # Fatura Tarihi
+                date_match = re.search(r'Tarih:\s*([\d\.]+)', details)
+                if date_match:
+                    invoice_date = date_match.group(1)
+                
+                transactions.append({
+                    'title': title,
+                    'display_date': display_date,
+                    'invoice_date': invoice_date,
+                    'amount': amount_str,
+                    'income': is_income,
+                    'is_updated': is_updated,
+                    'is_deleted': is_deleted,
+                    'operation_type': operation_type,
+                    'sort_key': timestamp  # Sıralama için timestamp kullan
+                })
             
-            title = "İşlem"
-            amount_str = "0.00"
-            invoice_date = ""
+            # Tarihe göre ters sıralama (en yeni üstte)
+            transactions.sort(key=lambda x: x.get('sort_key', ''), reverse=True)
             
-            # Firma
-            firma_match = re.search(r'Firma:\s*(.*?)(?:\s-\s|$)', details)
-            if firma_match:
-                title = firma_match.group(1)
-            
-            # Tutar
-            amount_match = re.search(r'Tutar:\s*([\d\.,]+)', details)
-            if amount_match:
-                amount_str = amount_match.group(1)
-            
-            # Fatura Tarihi
-            date_match = re.search(r'Tarih:\s*([\d\.]+)', details)
-            if date_match:
-                invoice_date = date_match.group(1)
-            
-            transactions.append({
-                'title': title,
-                'display_date': display_date,
-                'invoice_date': invoice_date,
-                'amount': amount_str,
-                'income': is_income,
-                'is_updated': is_updated,
-                'is_deleted': is_deleted,
-                'operation_type': operation_type,
-                'sort_key': timestamp  # Sıralama için timestamp kullan
-            })
+            return transactions
         
-        # Tarihe göre ters sıralama (en yeni üstte)
-        transactions.sort(key=lambda x: x.get('sort_key', ''), reverse=True)
-        
-        return transactions
-    
-    transactions_column = ft.Column(spacing=5, scroll=ft.ScrollMode.ALWAYS, expand=True)
-    current_filter_date = None  # Aktif tarih filtresini sakla
+        transactions_column = ft.Column(spacing=5, scroll=ft.ScrollMode.ALWAYS, expand=True)
+        current_filter_date = None  # Aktif tarih filtresini sakla
 
-    def update_transactions(filter_date=None):
-        """Geçmiş işlemleri günceller - filtre varsa veritabanından çeker"""
-        nonlocal current_filter_date
-        
-        # Eğer parametre verilmediyse, mevcut filtreyi kullan
-        if filter_date is None and current_filter_date is not None:
-            filter_date = current_filter_date
-        else:
-            current_filter_date = filter_date
-        
-        transactions_column.controls.clear()
-        filtered_data = []
-        
-        if filter_date:
-            # Tarih filtresi varsa veritabanından o tarihteki işlemleri çek
-            display_date = filter_date.strftime("%d.%m.%Y")
+        def update_transactions(filter_date=None):
+            """Geçmiş işlemleri günceller - filtre varsa veritabanından çeker"""
+            nonlocal current_filter_date
             
-            # Veritabanı sorgusu için ISO formatı (YYYY-MM-DD)
-            # Günün başlangıcı ve bitişi
-            query_date_str = filter_date.strftime("%Y-%m-%d")
-            start_str = f"{query_date_str}T00:00:00"
-            end_str = f"{query_date_str}T23:59:59"
+            # Eğer parametre verilmediyse, mevcut filtreyi kullan
+            if filter_date is None and current_filter_date is not None:
+                filter_date = current_filter_date
+            else:
+                current_filter_date = filter_date
             
-            # Başlık ekle
-            transactions_column.controls.append(
-                ft.Container(
-                    content=ft.Row([
-                        ft.Icon(ft.Icons.CALENDAR_TODAY, color=col_primary, size=16),
-                        ft.Text(f"{display_date} tarihli işlemler", size=13, weight="bold", color=col_primary)
-                    ], spacing=5),
-                    padding=ft.padding.only(bottom=10)
-                )
-            )
+            transactions_column.controls.clear()
+            filtered_data = []
             
-            # O tarihteki işlemleri getir
-            history_records = backend_instance.get_history_by_date_range(start_str, end_str)
-            filtered_data = _process_history_records(history_records)
-        else:
-            # Filtre yoksa son işlemleri yeniden çek
-            filtered_data = get_recent_transactions()
-
-        if not filtered_data:
-            transactions_column.controls.append(ft.Container(content=ft.Text("Bu tarihte işlem bulunamadı.", color=col_text_light), alignment=ft.alignment.center, padding=20))
-        else:
-            for t in filtered_data:
+            if filter_date:
+                # Tarih filtresi varsa veritabanından o tarihteki işlemleri çek
+                display_date = filter_date.strftime("%d.%m.%Y")
+                
+                # Veritabanı sorgusu için ISO formatı (YYYY-MM-DD)
+                # Günün başlangıcı ve bitişi
+                query_date_str = filter_date.strftime("%Y-%m-%d")
+                start_str = f"{query_date_str}T00:00:00"
+                end_str = f"{query_date_str}T23:59:59"
+                
+                # Başlık ekle
                 transactions_column.controls.append(
-                    TransactionRow(
-                        t["title"], 
-                        t["display_date"], 
-                        t["amount"], 
-                        t["income"],
-                        is_updated=t.get("is_updated", False),
-                        is_deleted=t.get("is_deleted", False),
-                        invoice_date=t.get("invoice_date"),
-                        operation_type=t.get("operation_type", "EKLEME")
+                    ft.Container(
+                        content=ft.Row([
+                            ft.Icon(ft.Icons.CALENDAR_TODAY, color=col_primary, size=16),
+                            ft.Text(tr("transactions_for_date").format(display_date), size=13, weight="bold", color=col_primary)
+                        ], spacing=5),
+                        padding=ft.padding.only(bottom=10)
                     )
                 )
-        
-        try:
-            if transactions_column.page: 
-                transactions_column.update()
-        except:
-            pass
-
-    # İşlem geçmişi callback'ini kaydet
-    state["update_callbacks"]["transaction_history"] = update_transactions
-    
-    update_transactions()
-
-    def handle_date_change(e):
-        if e.control.value: update_transactions(e.control.value)
-
-    # Özel Türkçe tarih seçici dialog
-    date_input_field = ft.TextField(
-        hint_text="ggaayy veya gg.aa.yyyy (örn. 121225)",
-        hint_style=ft.TextStyle(color="#D0D0D0", size=12),
-        text_size=14,
-        color=col_text,
-        border_color=col_border,
-        focused_border_color=col_primary,
-        border_radius=8,
-        content_padding=ft.padding.symmetric(horizontal=15, vertical=12),
-        width=280
-    )
-    
-    date_dialog_error = ft.Text("", color=col_danger, size=12, visible=False)
-    
-    def close_date_dialog(e):
-        date_dialog.open = False
-        date_input_field.value = ""
-        date_dialog_error.visible = False
-        page.update()
-    
-    def apply_date_filter(e):
-        """Girilen tarihi parse edip filtrele"""
-        input_val = date_input_field.value
-        if not input_val or not input_val.strip():
-            date_dialog_error.value = "Lütfen bir tarih girin"
-            date_dialog_error.visible = True
-            page.update()
-            return
-        
-        # Tarihi formatla
-        formatted = format_date_input(input_val.strip())
-        
-        # Geçerli tarih mi kontrol et
-        try:
-            parts = formatted.split('.')
-            if len(parts) == 3:
-                gun, ay, yil = int(parts[0]), int(parts[1]), int(parts[2])
-                selected_date = datetime(yil, ay, gun)
                 
-                # Dialog'u kapat ve filtrele
-                date_dialog.open = False
-                date_input_field.value = ""
-                date_dialog_error.visible = False
-                page.update()
-                
-                update_transactions(selected_date)
+                # O tarihteki işlemleri getir
+                history_records = backend_instance.get_history_by_date_range(start_str, end_str)
+                filtered_data = _process_history_records(history_records)
             else:
-                raise ValueError("Geçersiz format")
-        except (ValueError, IndexError):
-            date_dialog_error.value = "Geçersiz tarih! Örn: 121225 veya 12.12.2025"
-            date_dialog_error.visible = True
-            page.update()
-    
-    # Türkçe ay isimleri ile takvim görünümü için basit bir seçici
-    TURKISH_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                      "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
-    
-    current_cal_year = datetime.now().year
-    current_cal_month = datetime.now().month
-    
-    def get_month_days(year, month):
-        """Ayın gün sayısını döndür"""
-        if month == 12:
-            next_month = datetime(year + 1, 1, 1)
-        else:
-            next_month = datetime(year, month + 1, 1)
-        return (next_month - datetime(year, month, 1)).days
-    
-    def select_day(day, year, month):
-        """Gün seçildiğinde"""
-        def handler(e):
-            selected_date = datetime(year, month, day)
+                # Filtre yoksa son işlemleri yeniden çek
+                filtered_data = get_recent_transactions()
+
+            if not filtered_data:
+                transactions_column.controls.append(ft.Container(content=ft.Text(tr("no_transactions"), color="onSurfaceVariant"), alignment=ft.alignment.center, padding=20))
+            else:
+                for t in filtered_data:
+                    transactions_column.controls.append(
+                        TransactionRow(
+                            t["title"], 
+                            t["display_date"], 
+                            t["amount"], 
+                            t["income"],
+                            is_updated=t.get("is_updated", False),
+                            is_deleted=t.get("is_deleted", False),
+                            invoice_date=t.get("invoice_date"),
+                            operation_type=t.get("operation_type", "EKLEME")
+                        )
+                    )
+            
+            try:
+                if transactions_column.page: 
+                    transactions_column.update()
+            except:
+                pass
+
+        # İşlem geçmişi callback'ini kaydet
+        state["update_callbacks"]["transaction_history"] = update_transactions
+        
+        update_transactions()
+
+        def handle_date_change(e):
+            if e.control.value: update_transactions(e.control.value)
+
+        # Özel Türkçe tarih seçici dialog
+        date_input_field = ft.TextField(
+            hint_text=tr("date_hint"),
+            hint_style=ft.TextStyle(color="#D0D0D0", size=12),
+            text_size=14,
+            color="onBackground",
+            border_color="outline",
+            focused_border_color=col_primary,
+            border_radius=8,
+            content_padding=ft.padding.symmetric(horizontal=15, vertical=12),
+            width=280
+        )
+        
+        date_dialog_error = ft.Text("", color=col_danger, size=12, visible=False)
+        
+        def close_date_dialog(e):
             date_dialog.open = False
             date_input_field.value = ""
             date_dialog_error.visible = False
             page.update()
-            update_transactions(selected_date)
-        return handler
-    
-    calendar_grid = ft.Column(spacing=5)
-    month_year_text = ft.Text("", size=16, weight="bold", color=col_text)
-    
-    def build_calendar(year, month):
-        """Takvim grid'ini oluştur"""
-        nonlocal current_cal_year, current_cal_month
-        current_cal_year = year
-        current_cal_month = month
         
-        month_year_text.value = f"{TURKISH_MONTHS[month-1]} {year}"
-        
-        calendar_grid.controls.clear()
-        
-        # Gün başlıkları
-        day_headers = ft.Row(
-            [ft.Container(
-                width=35, height=25,
-                content=ft.Text(d, size=11, weight="bold", color=col_text_light, text_align=ft.TextAlign.CENTER),
-                alignment=ft.alignment.center
-            ) for d in ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]],
-            alignment=ft.MainAxisAlignment.CENTER,
-            spacing=2
-        )
-        calendar_grid.controls.append(day_headers)
-        
-        # Ayın ilk gününün haftanın hangi günü olduğunu bul (0=Pazartesi)
-        first_day = datetime(year, month, 1)
-        start_weekday = first_day.weekday()
-        
-        # Ayın toplam gün sayısı
-        total_days = get_month_days(year, month)
-        
-        # Takvim satırlarını oluştur
-        day_num = 1
-        for week in range(6):  # Max 6 hafta
-            if day_num > total_days:
-                break
+        def apply_date_filter(e):
+            """Girilen tarihi parse edip filtrele"""
+            input_val = date_input_field.value
+            if not input_val or not input_val.strip():
+                date_dialog_error.value = "Lütfen bir tarih girin"
+                date_dialog_error.visible = True
+                page.update()
+                return
             
-            week_row = []
-            for weekday in range(7):
-                if week == 0 and weekday < start_weekday:
-                    # Boş hücre
-                    week_row.append(ft.Container(width=35, height=30))
-                elif day_num <= total_days:
-                    # Bugün mü kontrol et
-                    is_today = (year == datetime.now().year and 
-                               month == datetime.now().month and 
-                               day_num == datetime.now().day)
+            # Tarihi formatla
+            formatted = format_date_input(input_val.strip())
+            
+            # Geçerli tarih mi kontrol et
+            try:
+                parts = formatted.split('.')
+                if len(parts) == 3:
+                    gun, ay, yil = int(parts[0]), int(parts[1]), int(parts[2])
+                    selected_date = datetime(yil, ay, gun)
                     
-                    day_btn = ft.Container(
-                        width=35, height=30,
-                        bgcolor=col_primary if is_today else None,
-                        border_radius=5,
-                        content=ft.Text(
-                            str(day_num), 
-                            size=12, 
-                            color=col_white if is_today else col_text,
-                            text_align=ft.TextAlign.CENTER
-                        ),
-                        alignment=ft.alignment.center,
-                        on_click=select_day(day_num, year, month),
-                        ink=True
-                    )
-                    week_row.append(day_btn)
-                    day_num += 1
+                    # Dialog'u kapat ve filtrele
+                    date_dialog.open = False
+                    date_input_field.value = ""
+                    date_dialog_error.visible = False
+                    page.update()
+                    
+                    update_transactions(selected_date)
                 else:
-                    week_row.append(ft.Container(width=35, height=30))
-            
-            calendar_grid.controls.append(
-                ft.Row(week_row, alignment=ft.MainAxisAlignment.CENTER, spacing=2)
-            )
+                    raise ValueError("Geçersiz format")
+            except (ValueError, IndexError):
+                date_dialog_error.value = "Geçersiz tarih! Örn: 121225 veya 12.12.2025"
+                date_dialog_error.visible = True
+                page.update()
         
-        if calendar_grid.page:
-            calendar_grid.update()
-            month_year_text.update()
-    
-    def prev_month(e):
-        nonlocal current_cal_year, current_cal_month
-        if current_cal_month == 1:
-            current_cal_month = 12
-            current_cal_year -= 1
-        else:
-            current_cal_month -= 1
+        # Türkçe ay isimleri ile takvim görünümü için basit bir seçici
+        TURKISH_MONTHS = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
+                        "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+        
+        current_cal_year = datetime.now().year
+        current_cal_month = datetime.now().month
+        
+        def get_month_days(year, month):
+            """Ayın gün sayısını döndür"""
+            if month == 12:
+                next_month = datetime(year + 1, 1, 1)
+            else:
+                next_month = datetime(year, month + 1, 1)
+            return (next_month - datetime(year, month, 1)).days
+        
+        def select_day(day, year, month):
+            """Gün seçildiğinde"""
+            def handler(e):
+                selected_date = datetime(year, month, day)
+                date_dialog.open = False
+                date_input_field.value = ""
+                date_dialog_error.visible = False
+                page.update()
+                update_transactions(selected_date)
+            return handler
+        
+        calendar_grid = ft.Column(spacing=5)
+        month_year_text = ft.Text("", size=16, weight="bold", color="onBackground")
+        
+        def build_calendar(year, month):
+            """Takvim grid'ini oluştur"""
+            nonlocal current_cal_year, current_cal_month
+            current_cal_year = year
+            current_cal_month = month
+            
+            month_year_text.value = f"{TURKISH_MONTHS[month-1]} {year}"
+            
+            calendar_grid.controls.clear()
+            
+            # Gün başlıkları
+            day_headers = ft.Row(
+                [ft.Container(
+                    width=35, height=25,
+                    content=ft.Text(d, size=11, weight="bold", color="onSurfaceVariant", text_align=ft.TextAlign.CENTER),
+                    alignment=ft.alignment.center
+                ) for d in ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"]],
+                alignment=ft.MainAxisAlignment.CENTER,
+                spacing=2
+            )
+            calendar_grid.controls.append(day_headers)
+            
+            # Ayın ilk gününün haftanın hangi günü olduğunu bul (0=Pazartesi)
+            first_day = datetime(year, month, 1)
+            start_weekday = first_day.weekday()
+            
+            # Ayın toplam gün sayısı
+            total_days = get_month_days(year, month)
+            
+            # Takvim satırlarını oluştur
+            day_num = 1
+            for week in range(6):  # Max 6 hafta
+                if day_num > total_days:
+                    break
+                
+                week_row = []
+                for weekday in range(7):
+                    if week == 0 and weekday < start_weekday:
+                        # Boş hücre
+                        week_row.append(ft.Container(width=35, height=30))
+                    elif day_num <= total_days:
+                        # Bugün mü kontrol et
+                        is_today = (year == datetime.now().year and 
+                                month == datetime.now().month and 
+                                day_num == datetime.now().day)
+                        
+                        day_btn = ft.Container(
+                            width=35, height=30,
+                            bgcolor=col_primary if is_today else None,
+                            border_radius=5,
+                            content=ft.Text(
+                                str(day_num), 
+                                size=12, 
+                                color=col_white if is_today else col_text,
+                                text_align=ft.TextAlign.CENTER
+                            ),
+                            alignment=ft.alignment.center,
+                            on_click=select_day(day_num, year, month),
+                            ink=True
+                        )
+                        week_row.append(day_btn)
+                        day_num += 1
+                    else:
+                        week_row.append(ft.Container(width=35, height=30))
+                
+                calendar_grid.controls.append(
+                    ft.Row(week_row, alignment=ft.MainAxisAlignment.CENTER, spacing=2)
+                )
+            
+            if calendar_grid.page:
+                calendar_grid.update()
+                month_year_text.update()
+        
+        def prev_month(e):
+            nonlocal current_cal_year, current_cal_month
+            if current_cal_month == 1:
+                current_cal_month = 12
+                current_cal_year -= 1
+            else:
+                current_cal_month -= 1
+            build_calendar(current_cal_year, current_cal_month)
+        
+        def next_month(e):
+            nonlocal current_cal_year, current_cal_month
+            if current_cal_month == 12:
+                current_cal_month = 1
+                current_cal_year += 1
+            else:
+                current_cal_month += 1
+            build_calendar(current_cal_year, current_cal_month)
+        
+        # İlk takvimi oluştur
         build_calendar(current_cal_year, current_cal_month)
-    
-    def next_month(e):
-        nonlocal current_cal_year, current_cal_month
-        if current_cal_month == 12:
-            current_cal_month = 1
-            current_cal_year += 1
-        else:
-            current_cal_month += 1
-        build_calendar(current_cal_year, current_cal_month)
-    
-    # İlk takvimi oluştur
-    build_calendar(current_cal_year, current_cal_month)
-    
-    date_dialog = ft.AlertDialog(
-        modal=True,
-        title=ft.Text("Tarih Seçin", weight="bold", size=18),
-        content=ft.Container(
-            width=320,
-            content=ft.Column([
-                # Manuel tarih girişi
-                ft.Text("Tarih Girin:", size=13, color=col_text_secondary),
-                date_input_field,
-                date_dialog_error,
-                ft.Container(height=5),
-                ft.ElevatedButton(
-                    "Tarihe Git",
-                    icon="search",
-                    bgcolor=col_primary,
-                    color=col_white,
-                    on_click=apply_date_filter,
-                    width=280
-                ),
-                ft.Divider(height=20),
-                # Takvim görünümü
-                ft.Text("veya Takvimden Seçin:", size=13, color=col_text_secondary),
-                ft.Container(height=5),
-                ft.Row([
-                    ft.IconButton(icon="chevron_left", on_click=prev_month, icon_color=col_primary),
-                    month_year_text,
-                    ft.IconButton(icon="chevron_right", on_click=next_month, icon_color=col_primary)
-                ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
-                calendar_grid
-            ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
-        ),
-        actions=[
-            ft.TextButton("İptal", on_click=close_date_dialog, style=ft.ButtonStyle(color=col_text_light))
-        ],
-        actions_alignment=ft.MainAxisAlignment.END
-    )
-    page.overlay.append(date_dialog)
-    
-    def open_date_dialog(e):
-        # Takvimi bugünün tarihine sıfırla
-        build_calendar(datetime.now().year, datetime.now().month)
-        date_dialog.open = True
-        page.update()
+        
+        date_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(tr("select_date_title"), weight="bold", size=18),
+            content=ft.Container(
+                width=320,
+                content=ft.Column([
+                    # Manuel tarih girişi
+                    ft.Text(tr("enter_date_label"), size=13, color="onSurfaceVariant"),
+                    date_input_field,
+                    date_dialog_error,
+                    ft.Container(height=5),
+                    ft.ElevatedButton(
+                        tr("go_to_date"),
+                        icon="search",
+                        bgcolor=col_primary,
+                        color=col_white,
+                        on_click=apply_date_filter,
+                        width=280
+                    ),
+                    ft.Divider(height=20),
+                    # Takvim görünümü
+                    ft.Text(tr("or_select_calendar"), size=13, color="onSurfaceVariant"),
+                    ft.Container(height=5),
+                    ft.Row([
+                        ft.IconButton(icon="chevron_left", on_click=prev_month, icon_color=col_primary),
+                        month_year_text,
+                        ft.IconButton(icon="chevron_right", on_click=next_month, icon_color=col_primary)
+                    ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
+                    calendar_grid
+                ], spacing=8, horizontal_alignment=ft.CrossAxisAlignment.CENTER)
+            ),
+            actions=[
+                ft.TextButton(tr("cancel"), on_click=close_date_dialog, style=ft.ButtonStyle(color="onSurfaceVariant"))
+            ],
+            actions_alignment=ft.MainAxisAlignment.END
+        )
+        page.overlay.append(date_dialog)
+        
+        def open_date_dialog(e):
+            # Takvimi bugünün tarihine sıfırla
+            build_calendar(datetime.now().year, datetime.now().month)
+            date_dialog.open = True
+            page.update()
 
-    def reset_transactions(e): update_transactions(None)
+        def reset_transactions(e): update_transactions(None)
 
-    transactions_list_content = ft.Column([ft.Row([ft.Text("Son İşlemler", size=18, weight="bold", color=col_text), ft.Row([ft.IconButton(icon="calendar_month", icon_color=col_text_light, tooltip="Tarihe Göre Git", on_click=open_date_dialog), ft.TextButton("En Son Girilenler", style=ft.ButtonStyle(color=col_primary), on_click=reset_transactions)])], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=15), transactions_column], spacing=5)
+        transactions_list_content = ft.Column([ft.Row([ft.Text(tr("recent_transactions"), size=18, weight="bold", color="onBackground"), ft.Row([ft.IconButton(icon="calendar_month", icon_color="onSurfaceVariant", tooltip=tr("go_by_date"), on_click=open_date_dialog), ft.TextButton(tr("latest_entries"), style=ft.ButtonStyle(color=col_primary), on_click=reset_transactions)])], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=15), transactions_column], spacing=5)
 
-    transactions_list = ft.Container(bgcolor=col_white, border_radius=20, padding=25, shadow=ft.BoxShadow(blur_radius=20, color="#08000000"), height=450, content=transactions_list_content)
+        transactions_list = ft.Container(bgcolor="surface", border_radius=20, padding=25, shadow=ft.BoxShadow(blur_radius=20, color="#08000000"), height=450, content=transactions_list_content)
 
-    # Yıl dropdown'ı için dinamik seçenekler oluştur - tüm veritabanı yıllarını çek
-    available_years = get_all_available_years()
-    year_dropdown_options = [ft.dropdown.Option(str(year)) for year in available_years]
-    default_year = str(available_years[0]) if available_years else str(datetime.now().year)
-    
-    # Dropdown'ı değişkene ata (refresh fonksiyonunda kullanmak için)
-    year_dropdown_ref = ft.Dropdown(width=100, options=year_dropdown_options, value=default_year, on_change=on_year_change, border_radius=10, text_size=13, content_padding=10)
-    
-    chart_container = ft.Container(bgcolor=col_white, border_radius=20, padding=ft.padding.only(left=30, right=30, top=30, bottom=10), expand=2, shadow=ft.BoxShadow(blur_radius=20, color="#08000000"), height=450, content=ft.Column([ft.Row([ft.Column([ft.Text("Performans Analizi", size=20, weight="bold", color=col_text), ft.Text("Yıllık gelir ve gider karşılaştırması", size=13, color=col_text_light)]), year_dropdown_ref], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=20), ft.Container(content=line_chart, expand=True), ft.Row([ft.Row([ft.Container(width=10, height=10, bgcolor=col_primary, border_radius=2), ft.Text("Gelir", size=12, color="grey")], spacing=5), ft.Row([ft.Container(width=10, height=10, bgcolor=col_secondary, border_radius=2), ft.Text("Gider", size=12, color="grey")], spacing=5)], alignment=ft.MainAxisAlignment.CENTER)]))
+        # Yıl dropdown'ı için dinamik seçenekler oluştur - tüm veritabanı yıllarını çek
+        available_years = get_all_available_years()
+        year_dropdown_options = [ft.dropdown.Option(str(year)) for year in available_years]
+        default_year = str(available_years[0]) if available_years else str(datetime.now().year)
+        
+        # Dropdown'ı değişkene ata (refresh fonksiyonunda kullanmak için)
+        year_dropdown_ref = ft.Dropdown(width=100, options=year_dropdown_options, value=default_year, on_change=on_year_change, border_radius=10, text_size=13, content_padding=10)
+        
+        chart_container = ft.Container(bgcolor="surface", border_radius=20, padding=ft.padding.only(left=30, right=30, top=30, bottom=10), expand=2, shadow=ft.BoxShadow(blur_radius=20, color="#08000000"), height=450, content=ft.Column([ft.Row([ft.Column([ft.Text(tr("performance_analysis"), size=20, weight="bold", color="onBackground"), ft.Text(tr("yearly_comparison"), size=13, color="onSurfaceVariant")]), year_dropdown_ref], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=20), ft.Container(content=line_chart, expand=True), ft.Row([ft.Row([ft.Container(width=10, height=10, bgcolor=col_primary, border_radius=2), ft.Text(tr("income"), size=12, color="grey")], spacing=5), ft.Row([ft.Container(width=10, height=10, bgcolor=col_secondary, border_radius=2), ft.Text(tr("expense"), size=12, color="grey")], spacing=5)], alignment=ft.MainAxisAlignment.CENTER)]))
 
-    dashboard_layout = ft.Column([header, ft.Container(height=10), stats_row, ft.Container(height=10), ft.Row([chart_container, ft.Container(content=transactions_list, expand=1)], expand=True, spacing=20)], spacing=10)
+        dashboard_layout = ft.Column([header, ft.Container(height=10), stats_row, ft.Container(height=10), ft.Row([chart_container, ft.Container(content=transactions_list, expand=1)], expand=True, spacing=20)], spacing=10)
+        
+        return dashboard_layout
 
-    dashboard_content.content = dashboard_layout
+    dashboard_content.content = create_dashboard_page()
     content_area = ft.Container(expand=True, padding=30, content=dashboard_content)
 
-    layout = ft.Row([sidebar_container, content_area], expand=True, spacing=0)
+    layout = ft.Column([top_bar, content_area], expand=True, spacing=0)
     page.add(layout)
     
     def start_animations():
@@ -3601,7 +3781,8 @@ def main(page: ft.Page):
         # Ana sayfa için birleşik callback - hem grafikler hem işlem geçmişi
         def home_page_full_update():
             refresh_charts_and_data()
-            update_transactions()  # İşlem geçmişini de güncelle
+            if state["update_callbacks"]["transaction_history"]:
+                state["update_callbacks"]["transaction_history"]()  # İşlem geçmişini de güncelle
         
         state["update_callbacks"]["home_page"] = home_page_full_update
 
@@ -3632,7 +3813,7 @@ def main(page: ft.Page):
                     
                     # Bilgilendirme mesajı
                     page.snack_bar = ft.SnackBar(
-                        content=ft.Text("Güncelleme indiriliyor ve uygulanıyor...", color=col_white),
+                        content=ft.Text(tr("update_downloading"), color=col_white),
                         bgcolor=col_success
                     )
                     page.snack_bar.open = True
@@ -3645,11 +3826,11 @@ def main(page: ft.Page):
                 # Güncelleme onayı için dialog göster
                 update_dlg = ft.AlertDialog(
                     modal=True,
-                    title=ft.Text("Güncelleme Mevcut"),
+                    title=ft.Text(tr("update_available")),
                     content=ft.Text(msg),
                     actions=[
-                        ft.ElevatedButton("Evet", on_click=on_update_confirm, bgcolor=col_success, color=col_white),
-                        ft.ElevatedButton("Hayır", on_click=lambda e: update_dlg.close(), bgcolor=col_danger, color=col_white)
+                        ft.ElevatedButton(tr("yes"), on_click=on_update_confirm, bgcolor=col_success, color=col_white),
+                        ft.ElevatedButton(tr("no"), on_click=lambda e: update_dlg.close(), bgcolor=col_danger, color=col_white)
                     ],
                     actions_alignment=ft.MainAxisAlignment.END,
                 )

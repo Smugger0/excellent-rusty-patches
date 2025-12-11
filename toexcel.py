@@ -1,28 +1,35 @@
 # -*- coding: utf-8 -*-
 """
 Excel Export Module for Invoice Management System
-Bu modül fatura listelerini Excel formatına dönüştürür
+Bu modül fatura listelerini Excel formatına dönüştürür.
+Pandas ve XlsxWriter kullanarak formatlı raporlar oluşturur.
 """
 
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
 
 class InvoiceExcelExporter:
-    """Fatura listelerini Excel'e dönüştüren sınıf"""
+    """
+    Fatura listelerini Excel'e dönüştüren ve raporlayan sınıf.
+    Otomatik sütun genişliği, hücre biçimlendirme ve özet tabloları içerir.
+    """
     
     def __init__(self):
         self.excel_folder = "ExcelReports"
-        # Klasör oluşturma kaldırıldı
+        # Klasör oluşturma işlemi artık ana uygulamada yapılıyor
         # if not os.path.exists(self.excel_folder):
         #     os.makedirs(self.excel_folder)
     
     def _auto_adjust_column_widths(self, writer, sheet_name, df):
-        """Sütun genişliklerini içeriğe göre otomatik ayarla"""
+        """
+        Excel sütun genişliklerini içeriğe göre otomatik ayarlar.
+        Ayrıca başlık ve hücre stillerini (renk, kenarlık vb.) uygular.
+        """
         try:
             worksheet = writer.sheets[sheet_name]
             workbook = writer.book
             
-            # Header formatı
+            # Başlık stili: Koyu, beyaz yazı, mor arka plan
             header_format = workbook.add_format({
                 'bold': True,
                 'text_wrap': True,
@@ -32,21 +39,21 @@ class InvoiceExcelExporter:
                 'border': 1
             })
             
-            # Veri formatı
+            # Standart hücre stili
             cell_format = workbook.add_format({
                 'text_wrap': True,
                 'valign': 'top',
                 'border': 1
             })
             
-            # Tutar formatı (2 ondalık)
+            # Para birimi stili (2 ondalık basamak)
             money_format = workbook.add_format({
                 'num_format': '#,##0.00',
                 'valign': 'top',
                 'border': 1
             })
             
-            # Döviz kuru formatı (5 ondalık)
+            # Döviz kuru stili (5 ondalık basamak - hassas hesaplama için)
             currency_format = workbook.add_format({
                 'num_format': '#,##0.00000',
                 'valign': 'top',

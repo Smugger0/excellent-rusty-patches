@@ -1,25 +1,33 @@
 # backend.py
 # -*- coding: utf-8 -*-
 
-# Merkezi import dosyasından gerekli modülleri al
+# Proje genelinde kullanılan kütüphaneler
 from imports import *
+
+# Rust tabanlı veritabanı modülü (Yüksek performanslı SQLite işlemleri için)
 try:
     import rust_db
 except ImportError:
     import sys
-    # If running from source or if the module is named differently
+    # Kaynak koddan çalıştırılıyorsa veya modül adı farklıysa yedek yükleme denemesi
     try:
         from rust_db import rust_db
     except ImportError:
         pass
 
+# İş mantığı modülleri
 from invoices import InvoiceProcessor, InvoiceManager, PeriodicIncomeCalculator
 
 
 class Backend:
-    """Uygulamanın ana iş mantığını yöneten sınıf."""
+    """
+    Uygulamanın ana omurgası.
+    Veritabanı bağlantıları, iş mantığı sınıfları ve olay yönetimi burada toplanır.
+    Frontend ile diğer modüller arasındaki köprüdür.
+    """
 
     class Event:
+        """Basit olay (event) yönetim sınıfı. Observer pattern uygular."""
         def __init__(self):
             self.handlers = []
         def connect(self, handler):
@@ -33,27 +41,32 @@ class Backend:
 
     def __init__(self):
         """
-        Backend başlatıcısı.
+        Backend servislerini başlatır:
+        1. Veritabanı bağlantısı (Rust)
+        2. Ayarların yüklenmesi
+        3. Alt modüllerin (Fatura, Gelir Hesaplama) başlatılması
+        4. Döviz kurlarının güncellenmesi
         """
-        # Callback fonksiyonları (Flet uyumlu)
-        self.on_data_updated = None  # Frontend tarafından atanacak
-        self.on_status_updated = None  # Frontend tarafından atanacak
+        # Frontend ile iletişim için callback'ler
+        self.on_data_updated = None
+        self.on_status_updated = None
         
-        # Rust async database initialization
+        # Rust veritabanı başlatma
         try:
             self.db = rust_db.Database()
         except AttributeError:
-            # Fallback if rust_db is a package containing the module
             if hasattr(rust_db, 'rust_db') and hasattr(rust_db.rust_db, 'Database'):
                 self.db = rust_db.rust_db.Database()
             else:
-                raise ImportError("Could not find Database class in rust_db module")
+                raise ImportError("Rust veritabanı modülü yüklenemedi!")
 
         self.db.init_connections()
         self.db.create_tables()
         
+        # Uygulama ayarlarını yükle
         self.settings = self.db.get_all_settings()
-        # Vergi oranını float'a dönüştür
+        
+        # Kurumlar vergisi ayarı (Varsayılan: %22)
         if 'kurumlar_vergisi_yuzdesi' in self.settings:
             try:
                 self.settings['kurumlar_vergisi_yuzdesi'] = float(self.settings['kurumlar_vergisi_yuzdesi'])
@@ -62,35 +75,33 @@ class Backend:
         else:
             self.settings['kurumlar_vergisi_yuzdesi'] = 22.0
 
-        # Fatura işleyici ve yönetici
+        # Alt modüllerin başlatılması
         self.invoice_processor = InvoiceProcessor(self)
         self.invoice_manager = InvoiceManager(self)
-        
-        # Dönemsel gelir hesaplayıcı
         self.periodic_calculator = PeriodicIncomeCalculator(self)
         
-        # QR Entegrasyon - Lazy loading (gerektiğinde yüklenecek)
+        # QR Modülü (Lazy Loading - Performans için sadece ihtiyaç duyulduğunda yüklenir)
         self._qr_integrator = None
         
-        # Sinyaller
-        self.data_updated = self.Event() # Veri güncelleme sinyali
+        # Veri değişikliklerini dinleyen olay
+        self.data_updated = self.Event()
         
-        # Döviz kurları
+        # Döviz kurları önbelleği
         self.exchange_rates = {
             'USD': 0.0,
             'EUR': 0.0
         }
         
-        # Kurları başlangıçta bir kez çek
+        # Başlangıçta kurları güncelle
         self.update_exchange_rates()
 
     @property
     def qr_integrator(self):
-        """QR entegratörünü lazy loading ile başlatır - OPTİMİZE EDİLMİŞ MODÜL."""
+        """QR modülünü ihtiyaç anında yükler (Lazy Loading)."""
         if self._qr_integrator is None:
             from fromqr import QRInvoiceIntegrator
             self._qr_integrator = QRInvoiceIntegrator(self)
-            logging.info("✅ QR Entegratörü başlatıldı (optimize edilmiş)")
+            logging.info("✅ QR Entegratörü başlatıldı")
         return self._qr_integrator
     
     def start_timers(self):

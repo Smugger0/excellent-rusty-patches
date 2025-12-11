@@ -1,7 +1,10 @@
 # invoices.py
 # -*- coding: utf-8 -*-
 """
-Fatura işleme ve hesaplama fonksiyonları
+FATURA İŞLEME VE HESAPLAMA MODÜLÜ
+
+Bu modül, fatura verilerinin doğrulanması, formatlanması ve
+vergi/kur hesaplamalarının yapılmasından sorumludur.
 """
 
 from imports import *
@@ -11,7 +14,10 @@ from imports import *
 # FATURA İŞLEME SINIFI (Invoice Processor Class)
 # ============================================================================
 class InvoiceProcessor:
-    """Fatura verilerini işleyen ve hesaplayan sınıf."""
+    """
+    Fatura verilerini işleyen, doğrulayan ve hesaplayan merkezi sınıf.
+    Backend ile sıkı entegrasyon içinde çalışır.
+    """
     
     def __init__(self, backend):
         """
@@ -23,7 +29,15 @@ class InvoiceProcessor:
         self.backend = backend
     
     def _to_decimal(self, value):
-        """Bir değeri güvenli bir şekilde Decimal'e çevirir (para hesaplamaları için)."""
+        """
+        Finansal hesaplamalar için güvenli Decimal dönüşümü yapar.
+        Farklı sayı formatlarını (Avrupa/ABD) otomatik algılar.
+        
+        Örnekler:
+        - "1.234,56" -> Decimal("1234.56") (Avrupa)
+        - "1,234.56" -> Decimal("1234.56") (ABD)
+        - "1234"     -> Decimal("1234.00")
+        """
         if value is None or value == '': 
             return Decimal('0')
         
@@ -68,7 +82,10 @@ class InvoiceProcessor:
             return Decimal('0')
 
     def format_date(self, date_str):
-        """Tarih string'ini 'dd.mm.yyyy' formatına çevirir."""
+        """
+        Farklı formatlardaki tarih stringlerini standart 'dd.mm.yyyy' formatına çevirir.
+        Desteklenen formatlar: YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY vb.
+        """
         # Boş string veya None ise None döndür (bugünün tarihi değil)
         if not date_str or (isinstance(date_str, str) and not date_str.strip()):
             return None

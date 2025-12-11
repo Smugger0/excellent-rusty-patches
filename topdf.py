@@ -1,14 +1,18 @@
 # -*- coding: utf-8 -*-
 """
 PDF Export Module for Invoice Management System
-Bu modül fatura listelerini PDF formatına dönüştürür
+Bu modül fatura listelerini PDF formatına dönüştürür.
+ReportLab kütüphanesini kullanarak profesyonel görünümlü raporlar oluşturur.
 """
 
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
 
 class InvoicePDFExporter:
-    """Fatura listelerini PDF'e dönüştüren sınıf"""
+    """
+    Fatura listelerini PDF'e dönüştüren ve raporlayan sınıf.
+    Türkçe karakter desteği, özel fontlar ve tablo düzeni sağlar.
+    """
     
     def __init__(self):
         self.page_width = A4[0]
@@ -18,7 +22,10 @@ class InvoicePDFExporter:
         self._setup_custom_styles()
     
     def _register_fonts(self):
-        """Türkçe karakterler için font kayıtları"""
+        """
+        Türkçe karakterler için gerekli fontları sisteme kaydeder.
+        Windows font klasöründen Arial ve Calibri fontlarını yüklemeye çalışır.
+        """
         try:
             # Windows varsayılan fontları
             windows_fonts = os.path.join(os.environ.get('WINDIR', 'C:\\Windows'), 'Fonts')
@@ -29,23 +36,26 @@ class InvoicePDFExporter:
                 pdfmetrics.registerFont(TTFont('Arial-Turkish', arial_path))
                 
             
-            # Arial Bold
+            # Arial Bold (Kalın yazı tipi)
             arial_bold_path = os.path.join(windows_fonts, 'arialbd.ttf')
             if os.path.exists(arial_bold_path):
                 pdfmetrics.registerFont(TTFont('Arial-Bold-Turkish', arial_bold_path))
                 
             
-            # Calibri alternatifi (daha modern görünüm)
+            # Calibri alternatifi (daha modern görünüm için)
             calibri_path = os.path.join(windows_fonts, 'calibri.ttf')
             if os.path.exists(calibri_path):
                 pdfmetrics.registerFont(TTFont('Calibri-Turkish', calibri_path))
                 
                 
         except Exception as e:
+            # Font yüklenemezse varsayılan fontlar kullanılır
             pass
     
     def _setup_custom_styles(self):
-        """Özel PDF stilleri oluştur"""
+        """
+        Rapor için özel PDF stillerini (başlık, tablo, metin) oluşturur.
+        """
         # Türkçe karakter destekli font adları - öncelik sırası
         registered_fonts = pdfmetrics.getRegisteredFontNames()
         

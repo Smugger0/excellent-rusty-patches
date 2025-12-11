@@ -1,51 +1,63 @@
 # fromqr.py
 # -*- coding: utf-8 -*-
 """
-OPTIMIZE EDİLMİŞ QR İŞLEME SİSTEMİ
-- 3 Aşamalı Akıllı Tarama (Hızlı → Orta → Derin)
-- Otomatik Fatura Tipi Tespiti (SATIS/ALIS)
-- Performans ve Doğruluk Dengesi
+GELİŞMİŞ QR VE PDF İŞLEME MODÜLÜ
+
+Bu modül, fatura PDF'lerinden ve resimlerinden veri çıkarmak için tasarlanmıştır.
+Temel Özellikler:
+1. Hibrit Tarama: Hem Python (PyMuPDF) hem de Rust (rxing) kullanarak maksimum performans.
+2. Akıllı ROI (Region of Interest): QR kodların genellikle bulunduğu üst %35'lik alanı öncelikli tarar.
+3. Dinamik DPI: Vektör ve taranmış PDF'ler için farklı çözünürlük stratejileri uygular.
+4. Hata Toleransı: QR okunamadığında gelişmiş metin analizi (OCR benzeri) devreye girer.
 """
 
 from imports import *
 
-#-----RUST QR------
+#----- RUST ENTEGRASYONU ------
+# Performans kritik işlemler için Rust modülü kullanılır.
 try:
     import rust_qr_backend
     RUST_AVAILABLE = True
 except ImportError:
     RUST_AVAILABLE = False
     import warnings
-    warnings.warn("UYARI: 'rust_qr_backend' modülü bulunamadı. Lütfen 'maturin develop --release' çalıştırın.", ImportWarning)
-# ------------------
+    warnings.warn("UYARI: 'rust_qr_backend' modülü bulunamadı. Performans düşebilir.", ImportWarning)
+# -----------------------------
 
 
 class OptimizedQRProcessor:
-    """PERFORMANS-DOĞRULUK DENGELİ QR İŞLEMCİSİ"""
+    """
+    Performans ve doğruluk odaklı QR işleme sınıfı.
+    Aşamalı tarama stratejisi kullanır: Hızlı -> Orta -> Detaylı
+    """
     
     def __init__(self):
         self.opencv_detector = None
         self.tools_loaded = False
+        # İstatistikler (Debugging ve optimizasyon takibi için)
         self.stats = {
-            'smart_dpi_300': 0,    # Yüksek kalite dosyalar
-            'smart_dpi_450': 0,    # Orta kalite dosyalar  
-            'smart_dpi_600': 0,    # Düşük kalite dosyalar
-            'fallback_scan': 0,    # Son çare tam tarama
-            'stage1_fast': 0,      # Resim işleme - hızlı tarama
-            'stage2_medium': 0,    # Resim işleme - orta tarama
-            'stage3_deep': 0,      # Resim işleme - derin tarama
+            'smart_dpi_300': 0,
+            'smart_dpi_450': 0,
+            'smart_dpi_600': 0,
+            'fallback_scan': 0,
+            'stage1_fast': 0,      # En hızlı başarılı taramalar
+            'stage2_medium': 0,    # Orta seviye taramalar
+            'stage3_deep': 0,      # Zorlu dosyalar
             'failed': 0
         }
-        # Dosya kalite cache (aynı dosya tekrar işlenirse hızlı olsun)
+        # Dosya analiz önbelleği
         self.file_quality_cache = {}
         
     def _scan_raw_with_rust(self, raw_data, width, height):
-        """Ham piksel verisini (Grayscale) Rust'a gönderir."""
+        """
+        Ham piksel verisini (Grayscale) doğrudan Rust backend'e gönderir.
+        Bu yöntem, Python tarafında görüntü işleme maliyetini ortadan kaldırır.
+        """
         if not RUST_AVAILABLE:
             return None
         
         try:
-            # Rust modülüne ham pikselleri gönder
+            # Rust modülüne ham pikselleri gönder (GIL release edilmiş durumda çalışır)
             raw_qr = rust_qr_backend.scan_raw_luma(raw_data, width, height)
             
             if raw_qr:
@@ -55,7 +67,6 @@ class OptimizedQRProcessor:
                 except json.JSONDecodeError:
                     return {"_raw_data": cleaned, "_parse_error": True}
         except Exception as e:
-            import logging
             logging.error(f"Rust RAW tarama hatası: {e}")
         
         return None
@@ -211,41 +222,52 @@ class OptimizedQRProcessor:
             return []
     
     def process_pdf(self, pdf_path):
-        """PDF işleme - Bölgesel Tarama (ROI) + Akıllı Strateji"""
+        """
+        PDF İşleme Motoru
+        
+        Strateji:
+        1. Dosya Türü Tespiti: Vektör (dijital) mi yoksa Taranmış (resim) mı?
+        2. Bölgesel Tarama (ROI): QR kodlar genelde üst %35'lik alandadır.
+        3. Aşamalı Çözünürlük (DPI): Düşük DPI'dan başlayıp gerekirse artırır.
+        
+        Bu yaklaşım, gereksiz piksel işlemeyi önleyerek hızı maksimize eder.
+        """
         try:
             # PDF'i tek seferde aç
             doc = fitz.open(pdf_path)
             page = doc.load_page(0)
             
-            # 1. Metin Çıkarma (Açık doc üzerinden - HIZLI)
+            # 1. Metin Çıkarma (Hızlı analiz için)
             pdf_text = page.get_text()
             
-            # Metin varlığına göre strateji belirle
+            # Metin yoğunluğuna göre dosya türü tahmini
+            # >50 karakter varsa muhtemelen dijital (vektör) PDF'tir
             is_likely_vector = len(pdf_text) > 50
             
-            # ROI (Region of Interest) - Üst %35 (QR genelde buradadır)
+            # ROI (Region of Interest) Tanımlama
+            # Sayfanın sadece üst %35'ini hedefle
             page_rect = page.rect
             roi_rect = fitz.Rect(0, 0, page_rect.width, page_rect.height * 0.35)
             
             if is_likely_vector:
                 # --- STRATEJİ A: VEKTÖR PDF (E-FATURA) ---
+                # Dijital faturalarda QR kodlar çok nettir, düşük DPI yeterlidir.
                 
-                # Adım 1: ROI Tarama (150 DPI) - ÇOK HIZLI
-                # Vektör PDF'lerde QR nettir, 150 DPI yeterlidir.
+                # Adım 1: ROI Tarama (150 DPI) - EN HIZLI
                 result = self._try_pdf_with_dpi(page, 150, "VEKTÖR-ROI-150", clip=roi_rect)
                 if result:
                     doc.close()
                     self.stats['stage1_fast'] += 1
                     return result, pdf_text
                 
-                # Adım 2: Tam Sayfa (300 DPI)
+                # Adım 2: Tam Sayfa (300 DPI) - Orta Hız
                 result = self._try_pdf_with_dpi(page, 300, "VEKTÖR-TAM-300")
                 if result:
                     doc.close()
                     self.stats['stage2_medium'] += 1
                     return result, pdf_text
                 
-                # Adım 3: Yüksek Kalite (450 DPI)
+                # Adım 3: Yüksek Kalite (450 DPI) - Son Çare
                 result = self._try_pdf_with_dpi(page, 450, "VEKTÖR-YÜKSEK-450")
                 if result:
                     doc.close()
@@ -254,9 +276,9 @@ class OptimizedQRProcessor:
             
             else:
                 # --- STRATEJİ B: TARANMIŞ PDF (RESİM) ---
+                # Taranmış belgeler daha bulanıktır, biraz daha yüksek DPI gerekir.
                 
                 # Adım 1: ROI Tarama (250 DPI)
-                # Taranmış belgelerde 500 DPI çok yavaştır, 250 ile başla.
                 result = self._try_pdf_with_dpi(page, 250, "TARAMA-ROI-250", clip=roi_rect)
                 if result:
                     doc.close()
