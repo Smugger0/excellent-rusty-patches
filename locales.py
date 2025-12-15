@@ -101,6 +101,8 @@ TRANSLATIONS = {
         "msg_pdf_error_prefix": "❌ PDF hatası: {}",
         "title_save_excel": "Excel Dosyasını Kaydet",
         "title_save_pdf": "PDF Dosyasını Kaydet",
+        "title_save_excel_report": "Excel Raporunu Kaydet",
+        "title_save_pdf_report": "PDF Raporunu Kaydet",
         "yearly_general_expenses": "Yıllık Genel Giderler",
         
         "process_completed": "İşlem Tamamlandı",
@@ -113,6 +115,10 @@ TRANSLATIONS = {
         "qr_error_prefix": "QR işleme hatası: {}",
         "reading_qr_codes": "QR kodları okunuyor...",
         "qr_processing_title": "QR Kod İşleme",
+        "scanning_files": "📁 Dosyalar taranıyor...",
+        "preparing_files": "🚀 {} dosya işlenmeye hazırlanıyor...",
+        "qr_processing_complete": "✅ QR işleme tamamlandı!",
+        "processing_progress": "İşleniyor: %{} ({}/{})",
         "entry_date": "Giriş: {}",
         "invoice_date": "Fatura Tarihi: {}",
         "rate_label": "Kur: {:.2f}",
@@ -131,8 +137,12 @@ TRANSLATIONS = {
         "income": "Gelir",
         "expense": "Gider",
         "update_available": "Güncelleme Mevcut",
-        "quarter_total": "ÇEYREK TOPLAM",
+        "col_quarter_total": "ÇEYREK TOPLAM",
+        "currency_tl": "TL",
+        "currency_usd": "USD",
+        "currency_eur": "EUR",
         "vat_label": "KDV",
+        "report_date": "Rapor Tarihi",
         "invoice_hint": "FAT-2025...",
         "date_hint": "ggaayy veya gg.aa.yyyy (örn. 121225)",
         "company_hint": "Firma seçiniz...",
@@ -173,15 +183,49 @@ TRANSLATIONS = {
         "month_nov": "KASIM",
         "month_dec": "ARALIK",
         
+        # Days
+        "day_mon": "Pzt",
+        "day_tue": "Sal",
+        "day_wed": "Çar",
+        "day_thu": "Per",
+        "day_fri": "Cum",
+        "day_sat": "Cmt",
+        "day_sun": "Paz",
+        
         # Operations
         "op_deleted": "SİLİNDİ",
         "op_updated": "GÜNCELLENDİ",
         "op_income_added": "GELİR EKLENDİ",
         "op_expense_added": "GİDER EKLENDİ",
+        "transaction_default_title": "İşlem",
+        "transactions_for_date": "{} tarihli işlemler",
+        "legend_income": "Gelir",
+        "legend_expense": "Gider",
+        "tooltip_go_to_date": "Tarihe Göre Git",
+        "btn_latest_entries": "En Son Girilenler",
+        "update_available_title": "Güncelleme Mevcut",
+        "update_available_msg": "Yeni bir güncelleme mevcut: {}\n\nAçıklama: {}\n\nGüncellemek için 'Evet' butonuna tıklayın.",
+        
+        "qr_folder_dialog_title": "QR PDF/Resim Klasörünü Seç",
+        "qr_error_prefix": "QR okuma hatası: {}",
+        "dialog_error_prefix": "Dialog hatası: {}",
+        "backup_save_title": "Yedek Dosyasını Kaydet",
+        "backup_error_prefix": "❌ Yedekleme hatası: {}",
+        "msg_backup_error": "❌ {}",
         
         "error_loading_data": "Veri yüklenirken hata oluştu.",
         "backup_success_title": "Yedekleme Başarılı",
         "language_changed_msg": "Dil değiştirildi. Tam etki için sayfaları gezinin veya yeniden başlatın.",
+        
+        # Hints
+        "hint_invoice_no": "FAT-2025...",
+        "hint_date": "ggaayy veya gg.aa.yyyy (örn. 121225)",
+        "hint_company": "Firma seçiniz...",
+        "hint_item": "Ürün giriniz...",
+        "hint_amount": "0",
+        "hint_total": "0.00",
+        "hint_vat": "Varsayılan (%)20",
+        "hint_currency": "TL",
         "update_downloading": "Güncelleme indiriliyor ve uygulanıyor...",
         "dark_mode": "Koyu Mod",
         "light_mode": "Açık Mod",
@@ -190,6 +234,61 @@ TRANSLATIONS = {
         "msg_pdf_report_error": "❌ PDF raporu oluşturulamadı!",
         "msg_qr_no_files": "❌ Klasörde işlenebilir dosya bulunamadı veya işlem başarısız!",
         "msg_no_invoices_export": "❌ Dışa aktarılacak fatura bulunamadı!",
+        
+        # PDF Export
+        "pdf_title_outgoing": "📈 GİDEN FATURALAR (GELİR) RAPORU",
+        "pdf_title_incoming": "📉 GELEN FATURALAR (GİDER) RAPORU",
+        "pdf_title_general": "📊 FATURA RAPORU",
+        "pdf_list_title": "FATURA LİSTESİ",
+        "pdf_income_invoices": "GELİR FATURALARI (Kesilen)",
+        "pdf_expense_invoices": "GİDER FATURALARI (Gelen)",
+        "summary_title": "ÖZET",
+        "summary_invoice_count": "Fatura Sayısı",
+        "unit_piece": "adet",
+        "summary_total_tl": "Toplam Tutar (TL)",
+        "summary_total_usd": "Toplam USD",
+        "summary_total_eur": "Toplam EUR",
+        "summary_total_vat": "Toplam KDV",
+        "summary_average": "Ortalama Fatura",
+        "unit_type": "BİRİM",
+        
+        # File Names
+        "filename_outgoing_invoices": "GelirFaturalari",
+        "filename_incoming_invoices": "GiderFaturalari",
+        "filename_general_expenses": "GenelGiderler",
+        "filename_monthly_expenses": "GenelGiderler_Aylik",
+        "filename_periodic_income": "DonemselGelir",
+        
+        # Excel Export
+        "excel_sheet_outgoing": "Giden Faturalar",
+        "excel_sheet_incoming": "Gelen Faturalar",
+        "excel_sheet_general_expenses": "Genel Giderler",
+        "excel_col_expense_type": "GİDER TÜRÜ",
+        "excel_col_description": "AÇIKLAMA",
+        "excel_col_amount": "TUTAR",
+        
+        # Months
+        "month_1": "Ocak",
+        "month_2": "Şubat",
+        "month_3": "Mart",
+        "month_4": "Nisan",
+        "month_5": "Mayıs",
+        "month_6": "Haziran",
+        "month_7": "Temmuz",
+        "month_8": "Ağustos",
+        "month_9": "Eylül",
+        "month_10": "Ekim",
+        "month_11": "Kasım",
+        "month_12": "Aralık",
+        
+        # Monthly Report
+        "report_title_suffix": "Raporu",
+        "col_months": "AYLAR",
+        "col_income": "GELİR",
+        "col_expense": "GİDER",
+        "col_vat_diff": "KDV FARKI",
+        "col_corp_tax": "KURUMLAR VERGİSİ (%)",
+        "col_quarter_total": "ÇEYREK TOPLAM",
     },
     "en": {
         # General
@@ -281,6 +380,8 @@ TRANSLATIONS = {
         "msg_pdf_error_prefix": "❌ PDF error: {}",
         "title_save_excel": "Save Excel File",
         "title_save_pdf": "Save PDF File",
+        "title_save_excel_report": "Save Excel Report",
+        "title_save_pdf_report": "Save PDF Report",
         "yearly_general_expenses": "Yearly General Expenses",
         
         "process_completed": "Process Completed",
@@ -293,6 +394,10 @@ TRANSLATIONS = {
         "qr_error_prefix": "QR processing error: {}",
         "reading_qr_codes": "Reading QR codes...",
         "qr_processing_title": "QR Code Processing",
+        "scanning_files": "📁 Scanning files...",
+        "preparing_files": "🚀 Preparing to process {} files...",
+        "qr_processing_complete": "✅ QR processing complete!",
+        "processing_progress": "Processing: %{} ({}/{})",
         "entry_date": "Entry: {}",
         "invoice_date": "Invoice Date: {}",
         "rate_label": "Rate: {:.2f}",
@@ -353,11 +458,24 @@ TRANSLATIONS = {
         "month_nov": "NOVEMBER",
         "month_dec": "DECEMBER",
         
+        # Days
+        "day_mon": "Mon",
+        "day_tue": "Tue",
+        "day_wed": "Wed",
+        "day_thu": "Thu",
+        "day_fri": "Fri",
+        "day_sat": "Sat",
+        "day_sun": "Sun",
+        
         # Operations
         "op_deleted": "DELETED",
         "op_updated": "UPDATED",
         "op_income_added": "INCOME ADDED",
         "op_expense_added": "EXPENSE ADDED",
+        "transaction_default_title": "Transaction",
+        "transactions_for_date": "Transactions for {}",
+        "legend_income": "Income",
+        "legend_expense": "Expense",
 
         "error_loading_data": "Error loading data.",
         "backup_success_title": "Backup Successful",
@@ -369,7 +487,88 @@ TRANSLATIONS = {
         "msg_excel_report_error": "❌ Excel report could not be created!",
         "msg_pdf_report_error": "❌ PDF report could not be created!",
         "msg_qr_no_files": "❌ No processable files found in folder or operation failed!",
+        "tooltip_go_to_date": "Go to Date",
+        "btn_latest_entries": "Latest Entries",
+        "update_available_title": "Update Available",
+        "update_available_msg": "New update available: {}\n\nDescription: {}\n\nClick 'Yes' to update.",
+        
+        "qr_folder_dialog_title": "Select QR PDF/Image Folder",
+        "qr_error_prefix": "QR reading error: {}",
+        "dialog_error_prefix": "Dialog error: {}",
+        "backup_save_title": "Save Backup File",
+        "backup_error_prefix": "❌ Backup error: {}",
+        "msg_backup_error": "❌ {}",
+        
+        # Hints
+        "hint_invoice_no": "INV-2025...",
+        "hint_date": "ddmmyy or dd.mm.yyyy (e.g. 121225)",
+        "hint_company": "Select company...",
+        "hint_item": "Enter item...",
+        "hint_amount": "0",
+        "hint_total": "0.00",
+        "hint_vat": "Default (%)20",
+        "hint_currency": "TL",
+
         "msg_no_invoices_export": "❌ No invoices found to export!",
+
+        # PDF Export
+        "pdf_title_outgoing": "📈 OUTGOING INVOICES (INCOME) REPORT",
+        "pdf_title_incoming": "📉 INCOMING INVOICES (EXPENSE) REPORT",
+        "pdf_title_general": "📊 INVOICE REPORT",
+        "pdf_list_title": "INVOICE LIST",
+        "pdf_income_invoices": "INCOME INVOICES (Issued)",
+        "pdf_expense_invoices": "EXPENSE INVOICES (Received)",
+        "summary_title": "SUMMARY",
+        "summary_invoice_count": "Invoice Count",
+        "unit_piece": "pcs",
+        "summary_total_tl": "Total Amount (TL)",
+        "summary_total_usd": "Total USD",
+        "summary_total_eur": "Total EUR",
+        "summary_total_vat": "Total VAT",
+        "summary_average": "Average Invoice",
+        "unit_type": "UNIT",
+        
+        # File Names
+        "filename_outgoing_invoices": "IncomeInvoices",
+        "filename_incoming_invoices": "ExpenseInvoices",
+        "filename_general_expenses": "GeneralExpenses",
+        "filename_monthly_expenses": "GeneralExpenses_Monthly",
+        "filename_periodic_income": "PeriodicIncome",
+        
+        # Excel Export
+        "excel_sheet_outgoing": "Outgoing Invoices",
+        "excel_sheet_incoming": "Incoming Invoices",
+        "excel_sheet_general_expenses": "General Expenses",
+        "excel_col_expense_type": "EXPENSE TYPE",
+        "excel_col_description": "DESCRIPTION",
+        "excel_col_amount": "AMOUNT",
+        
+        # Months
+        "month_1": "January",
+        "month_2": "February",
+        "month_3": "March",
+        "month_4": "April",
+        "month_5": "May",
+        "month_6": "June",
+        "month_7": "July",
+        "month_8": "August",
+        "month_9": "September",
+        "month_10": "October",
+        "month_11": "November",
+        "month_12": "December",
+        
+        # Monthly Report
+        "report_title_suffix": "Report",
+        "col_months": "MONTHS",
+        "col_income": "INCOME",
+        "col_expense": "EXPENSE",
+        "col_vat_diff": "VAT DIFF",
+        "col_corp_tax": "CORP. TAX (%)",
+        "col_quarter_total": "QUARTER TOTAL",
+        "currency_tl": "TL",
+        "currency_usd": "USD",
+        "currency_eur": "EUR",
+        "report_date": "Report Date",
     }
 }
 
@@ -380,3 +579,6 @@ def get_text(key, lang="tr"):
     """
     lang_dict = TRANSLATIONS.get(lang, TRANSLATIONS.get(DEFAULT_LANGUAGE))
     return lang_dict.get(key, key)
+
+# Alias for easier usage
+tr = get_text

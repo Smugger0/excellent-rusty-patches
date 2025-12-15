@@ -81,6 +81,20 @@ col_input_bg = "#FFFFFF"
 col_text_secondary = "#6B7280"
 col_card = "#FFFFFF"
 
+def create_styled_icon_button(icon, color, tooltip, on_click):
+    return ft.ElevatedButton(
+        content=ft.Icon(icon, color="white", size=18),
+        bgcolor=color,
+        tooltip=tooltip,
+        on_click=on_click,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=8),
+            padding=0,
+        ),
+        width=35,
+        height=35,
+    )
+
 # Şeffaf Renkler (Grafik ve efektler için)
 col_primary_50 = "#806C5DD3"
 col_secondary_50 = "#80FF9F43"
@@ -187,7 +201,7 @@ def get_exchange_rate_display():
 # ============================================================================
 
 class ScaleButton(ft.Container):
-    def __init__(self, icon, color, tooltip_text, width=50, height=45, on_click=None):
+    def __init__(self, icon, color, tooltip_text, width=35, height=35, on_click=None):
         super().__init__()
         self.bgcolor = color
         self.border_radius = 8
@@ -197,14 +211,13 @@ class ScaleButton(ft.Container):
         self.alignment = ft.alignment.center
         self.animate_scale = ft.Animation(200, ft.AnimationCurve.EASE_OUT_BACK)
         self.animate = ft.Animation(200, "easeOut")
-        self.ink = False 
-        if on_click:
-            self.on_click = on_click
+        self.ink = True 
+        self.on_click = on_click
         
         hex_code = color.lstrip("#")
         shadow_color = f"#80{hex_code}"
         self.shadow = ft.BoxShadow(blur_radius=5, color=shadow_color, offset=ft.Offset(0, 3))
-        self.content = ft.Icon(icon, color=col_white, size=22)
+        self.content = ft.Icon(icon, color=col_white, size=18)
         self.on_hover = self.hover_effect
         self.scale = 1.0 
 
@@ -884,8 +897,10 @@ def create_grid_expenses(page):
     
     def export_general_expenses_excel(e):
         """Genel giderleri Excel'e aktar - Aylık format"""
+        print("DEBUG: export_general_expenses_excel (Topbar) clicked")
         try:
             expenses = backend_instance.handle_genel_gider_operation('get', limit=1000)
+            print(f"DEBUG: expenses count={len(expenses) if expenses else 0}")
             
             if not expenses:
                 page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_expenses_export"), color=col_white), bgcolor=col_danger)
@@ -900,7 +915,8 @@ def create_grid_expenses(page):
                     
                     # Aylık formatta Excel'e aktar
                     from toexcel import export_monthly_general_expenses_to_excel
-                    success = export_monthly_general_expenses_to_excel(expenses, year=selected_year, file_path=file_path)
+                    current_lang = state.get("current_language", "tr")
+                    success = export_monthly_general_expenses_to_excel(expenses, year=selected_year, file_path=file_path, lang=current_lang)
                     
                     if success:
                         def close_success_dlg(e):
@@ -919,15 +935,16 @@ def create_grid_expenses(page):
                         page.overlay.append(success_dlg)
                         success_dlg.open = True
                         page.update()
-                else:
-                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_export_error"), color=col_white), bgcolor=col_danger)
-                    page.snack_bar.open = True
-                    page.update()
+                    else:
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_export_error"), color=col_white), bgcolor=col_danger)
+                        page.snack_bar.open = True
+                        page.update()
 
             # Dosya yolu oluştur
             selected_year = int(year_dropdown.value)
             timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-            filename = f"GenelGiderler_{selected_year}_{timestamp}.xlsx"
+            current_lang = state.get("current_language", "tr")
+            filename = f"{tr('filename_monthly_expenses')}_{selected_year}_{timestamp}.xlsx"
             
             save_file_picker = ft.FilePicker(on_result=on_save_result)
             page.overlay.append(save_file_picker)
@@ -935,14 +952,17 @@ def create_grid_expenses(page):
             save_file_picker.save_file(dialog_title=tr("title_save_excel"), file_name=filename, allowed_extensions=["xlsx"])
                 
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
-            page.snack_bar.open = True
-            page.update()
+            if "cancelled" not in str(ex).lower():
+                page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
+                page.snack_bar.open = True
+                page.update()
     
     def export_general_expenses_pdf(e):
         """Genel giderleri PDF'e aktar - Aylık format"""
+        print("DEBUG: export_general_expenses_pdf (Topbar) clicked")
         try:
             expenses = backend_instance.handle_genel_gider_operation('get', limit=1000)
+            print(f"DEBUG: expenses count={len(expenses) if expenses else 0}")
             
             if not expenses:
                 page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_expenses_export"), color=col_white), bgcolor=col_danger)
@@ -957,7 +977,8 @@ def create_grid_expenses(page):
                     
                     # Aylık formatta PDF'e aktar
                     from topdf import export_monthly_general_expenses_to_pdf
-                    success = export_monthly_general_expenses_to_pdf(expenses, year=selected_year, file_path=file_path)
+                    current_lang = state.get("current_language", "tr")
+                    success = export_monthly_general_expenses_to_pdf(expenses, year=selected_year, file_path=file_path, lang=current_lang)
                     
                     if success:
                         def close_success_dlg(e):
@@ -984,7 +1005,8 @@ def create_grid_expenses(page):
             # Dosya yolu oluştur
             selected_year = int(year_dropdown.value)
             timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-            filename = f"GenelGiderler_{selected_year}_{timestamp}.pdf"
+            current_lang = state.get("current_language", "tr")
+            filename = f"{tr('filename_monthly_expenses')}_{selected_year}_{timestamp}.pdf"
             
             save_file_picker = ft.FilePicker(on_result=on_save_result)
             page.overlay.append(save_file_picker)
@@ -992,9 +1014,10 @@ def create_grid_expenses(page):
             save_file_picker.save_file(dialog_title=tr("title_save_pdf"), file_name=filename, allowed_extensions=["pdf"])
                 
         except Exception as ex:
-            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
-            page.snack_bar.open = True
-            page.update()
+            if "cancelled" not in str(ex).lower():
+                page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_error_prefix").format(str(ex)), color=col_white), bgcolor=col_danger)
+                page.snack_bar.open = True
+                page.update()
     
     # Sayfa yüklendiğinde mevcut verileri yükle
     load_year_data()
@@ -1010,16 +1033,13 @@ def create_grid_expenses(page):
     state["update_callbacks"]["general_expenses"] = refresh_general_expenses
     
     # Butonları event handler'larla oluştur
-    btn_save = ScaleButton("save", "#4CD964", tr("save"), width=40, height=40)
-    btn_save.on_click = save_expenses
+    btn_save = create_styled_icon_button(ft.Icons.SAVE, "#4CD964", tr("save"), save_expenses)
     
-    btn_excel = ScaleButton("table_view", "#217346", tr("export_excel"), width=40, height=40)
-    btn_excel.on_click = export_general_expenses_excel
+    btn_excel = create_styled_icon_button(ft.Icons.TABLE_VIEW, "#217346", tr("export_excel"), export_general_expenses_excel)
     
-    btn_pdf = ScaleButton("picture_as_pdf", "#D32F2F", tr("export_pdf"), width=40, height=40)
-    btn_pdf.on_click = export_general_expenses_pdf
+    btn_pdf = create_styled_icon_button(ft.Icons.PICTURE_AS_PDF, "#D32F2F", tr("export_pdf"), export_general_expenses_pdf)
     
-    expense_buttons = ft.Container(padding=ft.padding.only(right=40), content=ft.Row([ft.Container(height=38, content=year_dropdown), ft.Container(height=38, content=currency_dropdown), btn_save, btn_excel, btn_pdf], spacing=5))
+    expense_buttons = ft.Container(padding=ft.padding.only(right=40), content=ft.Row([ft.Container(height=35, content=year_dropdown), ft.Container(height=35, content=currency_dropdown), btn_save, btn_excel, btn_pdf], spacing=5))
     
     return ft.Container(padding=ft.padding.only(top=15), content=ft.Column([ft.Row([ft.Row([ft.Icon("calendar_month", color=col_secondary, size=20), ft.Text(tr("yearly_general_expenses"), size=16, weight="bold", color="onBackground")], spacing=8), expense_buttons], alignment=ft.MainAxisAlignment.SPACE_BETWEEN), ft.Container(height=10), ft.Row(controls=expense_cards, wrap=True, spacing=15, run_spacing=15, alignment=ft.MainAxisAlignment.CENTER)]))
 
@@ -1817,106 +1837,111 @@ def main(page: ft.Page):
         
         year_dropdown.on_change = on_year_change
         
+        # File Picker Handlers
+        def on_save_excel_result(e: ft.FilePickerResultEvent):
+            if e.path:
+                file_path = e.path
+                selected_year = int(year_dropdown.value)
+                # Verileri topla
+                monthly_results, quarterly_results, summary = calculate_periodic_data(selected_year)
+                
+                # Export
+                from toexcel import export_monthly_income_to_excel
+                current_lang = state.get("current_language", "tr")
+                success = export_monthly_income_to_excel(selected_year, monthly_results, quarterly_results, summary, file_path, lang=current_lang)
+                
+                if success:
+                    def close_success_dlg(e):
+                        success_dlg.open = False
+                        page.update()
+
+                    success_dlg = ft.AlertDialog(
+                        modal=True,
+                        title=ft.Text(tr("success")),
+                        content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
+                        actions=[
+                            ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
+                        ],
+                        actions_alignment=ft.MainAxisAlignment.END,
+                    )
+                    page.overlay.append(success_dlg)
+                    success_dlg.open = True
+                    page.update()
+                else:
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_report_error"), color=col_white), bgcolor=col_danger)
+                    page.snack_bar.open = True
+                    page.update()
+
+        def on_save_pdf_result(e: ft.FilePickerResultEvent):
+            if e.path:
+                file_path = e.path
+                selected_year = int(year_dropdown.value)
+                # Verileri topla
+                monthly_results, quarterly_results, summary = calculate_periodic_data(selected_year)
+                
+                # Export
+                from topdf import export_monthly_income_to_pdf
+                current_lang = state.get("current_language", "tr")
+                success = export_monthly_income_to_pdf(selected_year, monthly_results, quarterly_results, summary, file_path, lang=current_lang)
+                
+                if success:
+                    def close_success_dlg(e):
+                        success_dlg.open = False
+                        page.update()
+
+                    success_dlg = ft.AlertDialog(
+                        modal=True,
+                        title=ft.Text(tr("success")),
+                        content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
+                        actions=[
+                            ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
+                        ],
+                        actions_alignment=ft.MainAxisAlignment.END,
+                    )
+                    page.overlay.append(success_dlg)
+                    success_dlg.open = True
+                    page.update()
+                else:
+                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_report_error"), color=col_white), bgcolor=col_danger)
+                    page.snack_bar.open = True
+                    page.update()
+
+        save_file_picker_excel = ft.FilePicker(on_result=on_save_excel_result)
+        save_file_picker_pdf = ft.FilePicker(on_result=on_save_pdf_result)
+        page.overlay.extend([save_file_picker_excel, save_file_picker_pdf])
+        
         # Export fonksiyonları
         def export_to_excel_donemsel(e):
             """Dönemsel gelir raporunu Excel'e aktar"""
+            print("DEBUG: export_to_excel_donemsel (Topbar) clicked")
             try:
                 selected_year = int(year_dropdown.value)
-                
-                def on_save_result(e: ft.FilePickerResultEvent):
-                    if e.path:
-                        file_path = e.path
-                        # Verileri topla
-                        monthly_results, quarterly_results, summary = calculate_periodic_data(selected_year)
-                        
-                        # Export
-                        from toexcel import export_monthly_income_to_excel
-                        success = export_monthly_income_to_excel(selected_year, monthly_results, quarterly_results, summary, file_path)
-                        
-                        if success:
-                            def close_success_dlg(e):
-                                success_dlg.open = False
-                                page.update()
-
-                            success_dlg = ft.AlertDialog(
-                                modal=True,
-                                title=ft.Text(tr("success")),
-                                content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
-                                actions=[
-                                    ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
-                                ],
-                                actions_alignment=ft.MainAxisAlignment.END,
-                            )
-                            page.overlay.append(success_dlg)
-                            success_dlg.open = True
-                            page.update()
-                        else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_report_error"), color=col_white), bgcolor=col_danger)
-                            page.snack_bar.open = True
-                            page.update()
-
                 timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-                filename = f"DonemselGelir_{selected_year}_{timestamp}.xlsx"
+                current_lang = state.get("current_language", "tr")
+                filename = f"{tr('filename_periodic_income')}_{selected_year}_{timestamp}.xlsx"
                 
-                save_file_picker = ft.FilePicker(on_result=on_save_result)
-                page.overlay.append(save_file_picker)
-                page.update()
-                save_file_picker.save_file(dialog_title="Excel Raporunu Kaydet", file_name=filename, allowed_extensions=["xlsx"])
-                    
+                save_file_picker_excel.save_file(dialog_title="Excel Raporunu Kaydet", file_name=filename, allowed_extensions=["xlsx"])
             except Exception as ex:
-                page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Hata: {str(ex)}", color=col_white), bgcolor=col_danger)
-                page.snack_bar.open = True
-                page.update()
+                if "cancelled" not in str(ex).lower():
+                    page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Hata: {str(ex)}", color=col_white), bgcolor=col_danger)
+                    page.snack_bar.open = True
+                    page.update()
         
         def export_to_pdf_donemsel(e):
             """Dönemsel gelir raporunu PDF'e aktar"""
+            print("DEBUG: export_to_pdf_donemsel (Topbar) clicked")
             try:
                 selected_year = int(year_dropdown.value)
-                
-                def on_save_result(e: ft.FilePickerResultEvent):
-                    if e.path:
-                        file_path = e.path
-                        # Verileri topla
-                        monthly_results, quarterly_results, summary = calculate_periodic_data(selected_year)
-                        
-                        # Export
-                        from topdf import export_monthly_income_to_pdf
-                        success = export_monthly_income_to_pdf(selected_year, monthly_results, quarterly_results, summary, file_path)
-                        
-                        if success:
-                            def close_success_dlg(e):
-                                success_dlg.open = False
-                                page.update()
-
-                            success_dlg = ft.AlertDialog(
-                                modal=True,
-                                title=ft.Text(tr("success")),
-                                content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
-                                actions=[
-                                    ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
-                                ],
-                                actions_alignment=ft.MainAxisAlignment.END,
-                            )
-                            page.overlay.append(success_dlg)
-                            success_dlg.open = True
-                            page.update()
-                        else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_report_error"), color=col_white), bgcolor=col_danger)
-                            page.snack_bar.open = True
-                            page.update()
-
                 timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
-                filename = f"DonemselGelir_{selected_year}_{timestamp}.pdf"
+                current_lang = state.get("current_language", "tr")
+                filename = f"{tr('filename_periodic_income')}_{selected_year}_{timestamp}.pdf"
                 
-                save_file_picker = ft.FilePicker(on_result=on_save_result)
-                page.overlay.append(save_file_picker)
-                page.update()
-                save_file_picker.save_file(dialog_title="PDF Raporunu Kaydet", file_name=filename, allowed_extensions=["pdf"])
-                    
+                save_file_picker_pdf.save_file(dialog_title="PDF Raporunu Kaydet", file_name=filename, allowed_extensions=["pdf"])
             except Exception as ex:
-                page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Hata: {str(ex)}", color=col_white), bgcolor=col_danger)
-                page.snack_bar.open = True
-                page.update()
+                if "cancelled" not in str(ex).lower():
+                    page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Hata: {str(ex)}", color=col_white), bgcolor=col_danger)
+                    page.snack_bar.open = True
+                    page.update()
         
         def calculate_periodic_data(year):
             """Dönemsel veriler için hesaplama yap"""
@@ -2022,18 +2047,6 @@ def main(page: ft.Page):
             
             return monthly_results, quarterly_results, summary
         
-        # Helper for styled icon buttons
-        def create_styled_icon_button(icon, color, tooltip, on_click):
-            return ft.Container(
-                content=ft.IconButton(icon=icon, tooltip=tooltip, icon_color="white", on_click=on_click),
-                bgcolor=color,
-                border_radius=8,
-                shadow=ft.BoxShadow(blur_radius=2, color="shadow", offset=ft.Offset(0, 1)),
-                width=40,
-                height=40,
-                alignment=ft.alignment.center
-            )
-
         btn_excel = create_styled_icon_button(ft.Icons.TABLE_VIEW, "#217346", tr("export_excel"), export_to_excel_donemsel)
         btn_pdf = create_styled_icon_button(ft.Icons.PICTURE_AS_PDF, "#D32F2F", tr("export_pdf"), export_to_pdf_donemsel)
         
@@ -2042,6 +2055,7 @@ def main(page: ft.Page):
 
         top_bar = ft.Row([
             ft.Container(height=38, content=year_dropdown),
+            report_controls
         ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN)
 
         return ft.Container(
@@ -2060,6 +2074,94 @@ def main(page: ft.Page):
     # FATURALAR SAYFASI
     # ------------------------------------------------------------------------
     def create_invoices_page():
+        # File Picker Handlers for Invoices
+        def on_save_invoices_excel_result(e: ft.FilePickerResultEvent):
+            if e.path:
+                file_path = e.path
+                current_invoice_type = state.get("invoice_type", "income")
+                db_type = 'outgoing' if current_invoice_type == 'income' else 'incoming'
+                type_name = "GelirFaturalari" if current_invoice_type == "income" else "GiderFaturalari"
+                
+                invoices = backend_instance.handle_invoice_operation(
+                    operation='get',
+                    invoice_type=db_type,
+                    limit=1000
+                )
+                
+                if invoices:
+                    # Excel'e aktar
+                    from toexcel import InvoiceExcelExporter
+                    excel_exporter = InvoiceExcelExporter()
+                    current_lang = state.get("current_language", "tr")
+                    success = excel_exporter.export_invoices_to_excel(invoices, type_name, file_path, lang=current_lang)
+                    
+                    if success:
+                        def close_success_dlg(e):
+                            success_dlg.open = False
+                            page.update()
+
+                        success_dlg = ft.AlertDialog(
+                            modal=True,
+                            title=ft.Text(tr("success")),
+                            content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
+                            actions=[
+                                ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
+                            ],
+                            actions_alignment=ft.MainAxisAlignment.END,
+                        )
+                        page.overlay.append(success_dlg)
+                        success_dlg.open = True
+                        page.update()
+                    else:
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_export_error"), color=col_white), bgcolor=col_danger)
+                        page.snack_bar.open = True
+                        page.update()
+
+        def on_save_invoices_pdf_result(e: ft.FilePickerResultEvent):
+            if e.path:
+                file_path = e.path
+                current_invoice_type = state.get("invoice_type", "income")
+                db_type = 'outgoing' if current_invoice_type == 'income' else 'incoming'
+                
+                invoices = backend_instance.handle_invoice_operation(
+                    operation='get',
+                    invoice_type=db_type,
+                    limit=1000
+                )
+                
+                if invoices:
+                    # PDF'e aktar
+                    from topdf import InvoicePDFExporter
+                    pdf_exporter = InvoicePDFExporter()
+                    current_lang = state.get("current_language", "tr")
+                    success = pdf_exporter.export_invoices_to_pdf(invoices, db_type, file_path, lang=current_lang)
+                    
+                    if success:
+                        def close_success_dlg(e):
+                            success_dlg.open = False
+                            page.update()
+
+                        success_dlg = ft.AlertDialog(
+                            modal=True,
+                            title=ft.Text(tr("success")),
+                            content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
+                            actions=[
+                                ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
+                            ],
+                            actions_alignment=ft.MainAxisAlignment.END,
+                        )
+                        page.overlay.append(success_dlg)
+                        success_dlg.open = True
+                        page.update()
+                    else:
+                        page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_export_error"), color=col_white), bgcolor=col_danger)
+                        page.snack_bar.open = True
+                        page.update()
+
+        save_file_picker_invoices_excel = ft.FilePicker(on_result=on_save_invoices_excel_result)
+        save_file_picker_invoices_pdf = ft.FilePicker(on_result=on_save_invoices_pdf_result)
+        page.overlay.extend([save_file_picker_invoices_excel, save_file_picker_invoices_pdf])
+
         general_expenses_section = create_grid_expenses(page)
         # Başlangıç durumuna göre visibility ayarla (income=gelir ise gizli, expense=gider ise görünür)
         general_expenses_section.visible = (state.get("invoice_type", "income") == "expense")
@@ -2209,7 +2311,7 @@ def main(page: ft.Page):
                 ft.Icon("swap_horiz", color=col_white, size=20)
             ], alignment=ft.MainAxisAlignment.CENTER, spacing=5), 
             bgcolor=initial_color, 
-            padding=ft.padding.symmetric(horizontal=20, vertical=10), 
+            padding=ft.padding.symmetric(horizontal=15, vertical=8), 
             border_radius=8, 
             on_click=toggle_invoice_type, 
             ink=False, 
@@ -2808,63 +2910,15 @@ def main(page: ft.Page):
 
         def export_to_excel(e):
             """Faturalari Excel'e aktar"""
+            print("DEBUG: export_to_excel (Topbar - Invoices) clicked")
             try:
                 current_invoice_type = state.get("invoice_type", "income")
-                db_type = 'outgoing' if current_invoice_type == 'income' else 'incoming'
-                
-                invoices = backend_instance.handle_invoice_operation(
-                    operation='get',
-                    invoice_type=db_type,
-                    limit=1000
-                )
-                
-                if not invoices:
-                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_invoices_export"), color=col_white), bgcolor=col_danger)
-                    page.snack_bar.open = True
-                    page.update()
-                    return
-                
-                def on_save_result(e: ft.FilePickerResultEvent):
-                    if e.path:
-                        file_path = e.path
-                        type_name = "GelirFaturalari" if current_invoice_type == "income" else "GiderFaturalari"
-                        
-                        # Excel'e aktar
-                        from toexcel import InvoiceExcelExporter
-                        excel_exporter = InvoiceExcelExporter()
-                        success = excel_exporter.export_invoices_to_excel(invoices, type_name, file_path)
-                        
-                        if success:
-                            def close_success_dlg(e):
-                                success_dlg.open = False
-                                page.update()
-
-                            success_dlg = ft.AlertDialog(
-                                modal=True,
-                                title=ft.Text(tr("success")),
-                                content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
-                                actions=[
-                                    ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
-                                ],
-                                actions_alignment=ft.MainAxisAlignment.END,
-                            )
-                            page.overlay.append(success_dlg)
-                            success_dlg.open = True
-                            page.update()
-                        else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_excel_export_error"), color=col_white), bgcolor=col_danger)
-                            page.snack_bar.open = True
-                            page.update()
-
-                # Dosya yolu oluştur
-                type_name = "GelirFaturalari" if current_invoice_type == "income" else "GiderFaturalari"
+                current_lang = state.get("current_language", "tr")
+                type_name = tr("filename_outgoing_invoices", current_lang) if current_invoice_type == "income" else tr("filename_incoming_invoices", current_lang)
                 timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
                 filename = f"{type_name}_{timestamp}.xlsx"
                 
-                save_file_picker = ft.FilePicker(on_result=on_save_result)
-                page.overlay.append(save_file_picker)
-                page.update()
-                save_file_picker.save_file(dialog_title="Excel Dosyasını Kaydet", file_name=filename, allowed_extensions=["xlsx"])
+                save_file_picker_invoices_excel.save_file(dialog_title="Excel Dosyasını Kaydet", file_name=filename, allowed_extensions=["xlsx"])
                     
             except Exception as ex:
                 page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ Excel hatası: {str(ex)}", color=col_white), bgcolor=col_danger)
@@ -2873,62 +2927,15 @@ def main(page: ft.Page):
 
         def export_to_pdf(e):
             """Faturalari PDF'e aktar"""
+            print("DEBUG: export_to_pdf (Topbar - Invoices) clicked")
             try:
                 current_invoice_type = state.get("invoice_type", "income")
-                db_type = 'outgoing' if current_invoice_type == 'income' else 'incoming'
-                
-                invoices = backend_instance.handle_invoice_operation(
-                    operation='get',
-                    invoice_type=db_type,
-                    limit=1000
-                )
-                
-                if not invoices:
-                    page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_no_invoices_export"), color=col_white), bgcolor=col_danger)
-                    page.snack_bar.open = True
-                    page.update()
-                    return
-                
-                def on_save_result(e: ft.FilePickerResultEvent):
-                    if e.path:
-                        file_path = e.path
-                        
-                        # PDF'e aktar
-                        from topdf import InvoicePDFExporter
-                        pdf_exporter = InvoicePDFExporter()
-                        success = pdf_exporter.export_invoices_to_pdf(invoices, db_type, file_path)
-                        
-                        if success:
-                            def close_success_dlg(e):
-                                success_dlg.open = False
-                                page.update()
-
-                            success_dlg = ft.AlertDialog(
-                                modal=True,
-                                title=ft.Text(tr("success")),
-                                content=ft.Text(f"Dosya başarıyla kaydedildi:\n{file_path}"),
-                                actions=[
-                                    ft.ElevatedButton("Tamam", on_click=close_success_dlg, bgcolor=col_primary, color=col_white),
-                                ],
-                                actions_alignment=ft.MainAxisAlignment.END,
-                            )
-                            page.overlay.append(success_dlg)
-                            success_dlg.open = True
-                            page.update()
-                        else:
-                            page.snack_bar = ft.SnackBar(content=ft.Text(tr("msg_pdf_export_error"), color=col_white), bgcolor=col_danger)
-                            page.snack_bar.open = True
-                            page.update()
-
-                # Dosya yolu oluştur
-                type_name = "GelirFaturalari" if current_invoice_type == "income" else "GiderFaturalari"
+                current_lang = state.get("current_language", "tr")
+                type_name = tr("filename_outgoing_invoices", current_lang) if current_invoice_type == "income" else tr("filename_incoming_invoices", current_lang)
                 timestamp = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
                 filename = f"{type_name}_{timestamp}.pdf"
                 
-                save_file_picker = ft.FilePicker(on_result=on_save_result)
-                page.overlay.append(save_file_picker)
-                page.update()
-                save_file_picker.save_file(dialog_title="PDF Dosyasını Kaydet", file_name=filename, allowed_extensions=["pdf"])
+                save_file_picker_invoices_pdf.save_file(dialog_title="PDF Dosyasını Kaydet", file_name=filename, allowed_extensions=["pdf"])
                     
             except Exception as ex:
                 page.snack_bar = ft.SnackBar(content=ft.Text(f"❌ PDF hatası: {str(ex)}", color=col_white), bgcolor=col_danger)
@@ -2936,17 +2943,6 @@ def main(page: ft.Page):
                 page.update()
 
         # Helper for styled icon buttons
-        def create_styled_icon_button(icon, color, tooltip, on_click):
-            return ft.Container(
-                content=ft.IconButton(icon=icon, tooltip=tooltip, icon_color="white", on_click=on_click),
-                bgcolor=color,
-                border_radius=8,
-                shadow=ft.BoxShadow(blur_radius=2, color="shadow", offset=ft.Offset(0, 1)),
-                width=40,
-                height=40,
-                alignment=ft.alignment.center
-            )
-
         # Butonları oluştur - Daha kompakt tasarım
         btn_clear = create_styled_icon_button(ft.Icons.REFRESH, "#7F8C8D", tr("clear"), clear_inputs)
         btn_add = create_styled_icon_button(ft.Icons.ADD_CIRCLE, col_success, tr("add"), add_invoice)
@@ -2985,7 +2981,7 @@ def main(page: ft.Page):
             border_radius=8,
             border=ft.border.all(1, "outlineVariant"),
             shadow=ft.BoxShadow(blur_radius=2, color="shadow", offset=ft.Offset(0, 1)),
-            height=40,
+            height=35,
             alignment=ft.alignment.center
         )
 
@@ -2994,8 +2990,6 @@ def main(page: ft.Page):
 
         # Tüm kontrolleri tek bir satırda topla
         controls_row = ft.Row([
-            type_toggle_btn, 
-            ft.VerticalDivider(width=10, color="outline"),
             operation_buttons,
             ft.VerticalDivider(width=10, color="outline"),
             sort_dropdown, 
@@ -3031,7 +3025,10 @@ def main(page: ft.Page):
         state["invoice_operations"] = None # Artık controls_row içinde
 
         return ft.Container(alignment=ft.alignment.top_center, padding=30, content=ft.Column([
-            ft.Row([ft.Text(tr("invoices_title"), size=28, weight="bold", color="onBackground")]),
+            ft.Row([
+                ft.Text(tr("invoices_title"), size=28, weight="bold", color="onBackground"),
+                type_toggle_btn
+            ], alignment=ft.MainAxisAlignment.SPACE_BETWEEN),
             ft.Container(height=15), 
             # ft.Container(content=controls_row), # Moved to TopBar
             ft.Container(height=20),

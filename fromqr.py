@@ -12,6 +12,7 @@ Temel Özellikler:
 """
 
 from imports import *
+from locales import get_text as tr
 
 #----- RUST ENTEGRASYONU ------
 # Performans kritik işlemler için Rust modülü kullanılır.
@@ -1509,11 +1510,11 @@ class OptimizedQRProcessor:
         
         return amounts
 
-    def process_qr_files_in_folder(self, folder_path, max_workers=6, status_callback=None):
+    def process_qr_files_in_folder(self, folder_path, max_workers=6, status_callback=None, lang="tr"):
         """Klasördeki tüm dosyaları işle (Sıralı İşleme)"""
 
         if status_callback:
-            status_callback("📁 Dosyalar taranıyor...", 5)
+            status_callback(tr("scanning_files", lang), 5)
         
         # Dosyaları topla
         allowed_extensions = {'.pdf', '.jpg', '.jpeg', '.png', '.bmp'}
@@ -1540,7 +1541,7 @@ class OptimizedQRProcessor:
         
         # Hızlı başlangıç bildirimi
         if status_callback:
-            status_callback(f"🚀 {len(file_paths)} dosya işlenmeye hazırlanıyor...", 1)
+            status_callback(tr("preparing_files", lang).format(len(file_paths)), 1)
         
         results = []
         completed_count = 0
@@ -1573,7 +1574,7 @@ class OptimizedQRProcessor:
                     if status_callback:
                         try:
                             progress = int((completed_count / len(file_paths)) * 95)
-                            msg = f"İşleniyor: %{progress} ({completed_count}/{len(file_paths)})"
+                            msg = tr("processing_progress", lang).format(progress, completed_count, len(file_paths))
                             if not status_callback(msg, progress):
                                 executor.shutdown(wait=False, cancel_futures=True)
                                 break
@@ -1596,7 +1597,7 @@ class OptimizedQRProcessor:
                             elapsed = time.time() - start_time
                             
                             # Yüzdelik gösterim ekle
-                            msg = f"İşleniyor: %{progress} ({completed_count}/{len(file_paths)})"
+                            msg = tr("processing_progress", lang).format(progress, completed_count, len(file_paths))
                             
                             if not status_callback(msg, progress):
                                 # İptal edildi
@@ -1650,7 +1651,7 @@ class OptimizedQRProcessor:
         # İstatistikler
         
         if status_callback:
-            status_callback("✅ QR işleme tamamlandı!", 100)
+            status_callback(tr("qr_processing_complete", lang), 100)
         
         return results
 
@@ -1670,12 +1671,13 @@ class QRInvoiceIntegrator:
         self.backend = backend_instance
         self.qr_processor = OptimizedQRProcessor()
     
-    def process_qr_files_in_folder(self, folder_path, max_workers=6, status_callback=None):
+    def process_qr_files_in_folder(self, folder_path, max_workers=6, status_callback=None, lang="tr"):
         """Klasördeki dosyaları işle"""
         return self.qr_processor.process_qr_files_in_folder(
             folder_path, 
             max_workers=max_workers,
-            status_callback=status_callback
+            status_callback=status_callback,
+            lang=lang
         )
     
     def add_invoices_from_qr_data(self, qr_results, invoice_type):

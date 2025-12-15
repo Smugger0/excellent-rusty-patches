@@ -7,6 +7,7 @@ Pandas ve XlsxWriter kullanarak formatlı raporlar oluşturur.
 
 # Merkezi import dosyasından gerekli modülleri al
 from imports import *
+from locales import tr
 
 # ============================================================================
 # FATURA EXCEL DIŞA AKTARICI
@@ -141,7 +142,7 @@ class InvoiceExcelExporter:
                 return date_str
         return date_str
     
-    def _prepare_invoice_data(self, invoice_data):
+    def _prepare_invoice_data(self, invoice_data, lang='tr'):
         """Fatura verilerini Excel formatına hazırla"""
         excel_data = []
         for invoice in invoice_data:
@@ -162,25 +163,25 @@ class InvoiceExcelExporter:
             kdv_yuzdesi = float(invoice.get('kdv_yuzdesi', 0) or 0)
             
             # Formatlı metinler (Frontend ile uyumlu)
-            usd_text = f"{tutar_usd:,.2f}" if usd_rate_val == 0 else f"{tutar_usd:,.2f} ({usd_rate_val:.2f} TL)"
-            eur_text = f"{tutar_eur:,.2f}" if eur_rate_val == 0 else f"{tutar_eur:,.2f} ({eur_rate_val:.2f} TL)"
+            usd_text = f"{tutar_usd:,.2f}" if usd_rate_val == 0 else f"{tutar_usd:,.2f} ({usd_rate_val:.2f} {tr('currency_tl', lang)})"
+            eur_text = f"{tutar_eur:,.2f}" if eur_rate_val == 0 else f"{tutar_eur:,.2f} ({eur_rate_val:.2f} {tr('currency_tl', lang)})"
             kdv_text = f"{kdv_tutari:,.2f} (%{kdv_yuzdesi:.0f})"
             
             row = {
-                'FATURA NO': invoice.get('fatura_no', ''),
-                'TARİH': self._format_date(invoice.get('tarih', '')),
-                'FİRMA': invoice.get('firma', ''),
-                'MALZEME': invoice.get('malzeme', ''),
-                'MİKTAR': invoice.get('miktar', ''),
-                'TUTAR (TL)': tutar_tl,
-                'TUTAR (USD)': usd_text,
-                'TUTAR (EUR)': eur_text,
-                'KDV (Tutar/%)': kdv_text
+                tr('col_invoice_no', lang): invoice.get('fatura_no', ''),
+                tr('col_date', lang): self._format_date(invoice.get('tarih', '')),
+                tr('col_company', lang): invoice.get('firma', ''),
+                tr('col_item', lang): invoice.get('malzeme', ''),
+                tr('col_amount', lang): invoice.get('miktar', ''),
+                tr('col_total_tl', lang): tutar_tl,
+                tr('col_total_usd', lang): usd_text,
+                tr('col_total_eur', lang): eur_text,
+                tr('col_vat', lang): kdv_text
             }
             excel_data.append(row)
         return excel_data
 
-    def export_invoices_to_excel(self, invoice_data, invoice_type, file_path=None):
+    def export_invoices_to_excel(self, invoice_data, invoice_type, file_path=None, lang='tr'):
         """Fatura listesini Excel'e dönüştür"""
         try:
             if not file_path:
@@ -188,8 +189,10 @@ class InvoiceExcelExporter:
                 filename = f"{invoice_type}_faturalari_{timestamp}.xlsx"
                 file_path = os.path.join(self.excel_folder, filename)
             
-            excel_data = self._prepare_invoice_data(invoice_data)
-            sheets_data = {f"{invoice_type.title()} Faturalar": {"data": excel_data}}
+            excel_data = self._prepare_invoice_data(invoice_data, lang)
+            
+            sheet_name = tr('excel_sheet_outgoing', lang) if invoice_type == 'outgoing' else tr('excel_sheet_incoming', lang)
+            sheets_data = {sheet_name: {"data": excel_data}}
             
             return self.export_to_excel(file_path, sheets_data)
             
@@ -197,7 +200,7 @@ class InvoiceExcelExporter:
             logging.error(f"Fatura Excel aktarma hatası: {e}")
             return False
 
-    def export_general_expenses_to_excel(self, expense_data, file_path=None):
+    def export_general_expenses_to_excel(self, expense_data, file_path=None, lang='tr'):
         """Genel gider listesini Excel'e dönüştür"""
         try:
             if not file_path:
@@ -208,14 +211,14 @@ class InvoiceExcelExporter:
             excel_data = []
             for expense in expense_data:
                 row = {
-                    'TARİH': self._format_date(expense.get('tarih', '')),
-                    'GİDER TÜRÜ': expense.get('tur', ''),
-                    'TUTAR': float(expense.get('miktar', 0) or 0),
-                    'AÇIKLAMA': expense.get('aciklama', '')
+                    tr('col_date', lang): self._format_date(expense.get('tarih', '')),
+                    tr('excel_col_expense_type', lang): expense.get('tur', ''),
+                    tr('excel_col_amount', lang): float(expense.get('miktar', 0) or 0),
+                    tr('excel_col_description', lang): expense.get('aciklama', '')
                 }
                 excel_data.append(row)
             
-            sheets_data = {"Genel Giderler": {"data": excel_data}}
+            sheets_data = {tr('excel_sheet_general_expenses', lang): {"data": excel_data}}
             return self.export_to_excel(file_path, sheets_data)
             
         except Exception as e:
@@ -224,22 +227,22 @@ class InvoiceExcelExporter:
 
 
 # Frontend'den kolayca çağırılabilir yardımcı fonksiyonlar
-def export_outgoing_invoices_to_excel(invoice_data, file_path=None):
+def export_outgoing_invoices_to_excel(invoice_data, file_path=None, lang='tr'):
     """Giden faturaları Excel'e aktar"""
     exporter = InvoiceExcelExporter()
-    return exporter.export_invoices_to_excel(invoice_data, 'outgoing', file_path)
+    return exporter.export_invoices_to_excel(invoice_data, 'outgoing', file_path, lang)
 
-def export_incoming_invoices_to_excel(invoice_data, file_path=None):
+def export_incoming_invoices_to_excel(invoice_data, file_path=None, lang='tr'):
     """Gelen faturaları Excel'e aktar"""
     exporter = InvoiceExcelExporter()
-    return exporter.export_invoices_to_excel(invoice_data, 'incoming', file_path)
+    return exporter.export_invoices_to_excel(invoice_data, 'incoming', file_path, lang)
 
-def export_general_expenses_to_excel(expense_data, file_path=None):
+def export_general_expenses_to_excel(expense_data, file_path=None, lang='tr'):
     """Genel giderleri Excel'e aktar"""
     exporter = InvoiceExcelExporter()
-    return exporter.export_general_expenses_to_excel(expense_data, file_path)
+    return exporter.export_general_expenses_to_excel(expense_data, file_path, lang)
 
-def export_monthly_general_expenses_to_excel(expense_data, year=None, file_path=None):
+def export_monthly_general_expenses_to_excel(expense_data, year=None, file_path=None, lang='tr'):
     """Genel giderleri aylık formatta Excel'e aktar - Yatay tablo (Aylar sütunlarda)"""
     try:
         if not year:
@@ -252,7 +255,7 @@ def export_monthly_general_expenses_to_excel(expense_data, year=None, file_path=
             file_path = os.path.join(exporter.excel_folder, filename)
         
         workbook = xlsxwriter.Workbook(file_path)
-        worksheet = workbook.add_worksheet(f'{year} Genel Giderler')
+        worksheet = workbook.add_worksheet(f'{year} {tr("excel_sheet_general_expenses", lang)}')
         
         # Formatlar
         header_format = workbook.add_format({
@@ -274,8 +277,7 @@ def export_monthly_general_expenses_to_excel(expense_data, year=None, file_path=
         })
         
         # Ayları parse et ve topla
-        months = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", 
-                  "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"]
+        months = [tr(f"month_{i+1}", lang) for i in range(12)]
         monthly_totals = {i+1: 0.0 for i in range(12)}
         
         # Expense data'dan aylık toplamları hesapla
@@ -303,12 +305,12 @@ def export_monthly_general_expenses_to_excel(expense_data, year=None, file_path=
                 continue
         
         # Başlık satırı (Aylar)
-        worksheet.write(0, 0, 'AY', header_format)
+        worksheet.write(0, 0, tr('col_months', lang), header_format)
         for i, month in enumerate(months):
             worksheet.write(0, i+1, month, header_format)
         
         # Tutar satırı
-        worksheet.write(1, 0, 'TUTAR', header_format)
+        worksheet.write(1, 0, tr('total', lang).upper(), header_format)
         for i in range(12):
             worksheet.write(1, i+1, monthly_totals[i+1], money_format)
         
@@ -324,11 +326,11 @@ def export_monthly_general_expenses_to_excel(expense_data, year=None, file_path=
         logging.error(f"Aylık genel gider Excel aktarma hatası: {e}")
         return False
 
-def export_monthly_income_to_excel(year, monthly_results, quarterly_results, summary, file_path):
+def export_monthly_income_to_excel(year, monthly_results, quarterly_results, summary, file_path, lang='tr'):
     """Dönemsel gelir raporunu Excel'e aktar - Uygulama görünümüne benzer formatla"""
     try:
         workbook = xlsxwriter.Workbook(file_path)
-        worksheet = workbook.add_worksheet(f'{year} Raporu')
+        worksheet = workbook.add_worksheet(f'{year} {tr("report_title_suffix", lang)}')
         
         # Renkler - Mor tema (açıktan koyuya)
         colors = {
@@ -382,7 +384,7 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
         
         # KDV alt satırı için format (daha küçük ve gri)
         kdv_format_base = {
-            'num_format': '"KDV: "#,##0.00 ₺',
+            'num_format': f'"{tr("vat_label", lang)}: "#,##0.00 ₺',
             'align': 'right',
             'valign': 'vcenter',
             'border': 1,
@@ -434,7 +436,7 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
         })
         
         total_kdv_format = workbook.add_format({
-            'num_format': '"KDV: "#,##0.00 ₺',
+            'num_format': f'"{tr("vat_label", lang)}: "#,##0.00 ₺',
             'align': 'right',
             'valign': 'vcenter',
             'bg_color': '#E7E6E6',
@@ -471,13 +473,19 @@ def export_monthly_income_to_excel(year, monthly_results, quarterly_results, sum
         worksheet.set_column('F:F', 22)  # Çeyrek Toplam
         
         # Başlıklar
-        headers = ['AYLAR', 'GELİR', 'GİDER', 'KDV FARKI', 'KURUMLAR VERGİSİ (%)', 'ÇEYREK TOPLAM']
+        headers = [
+            tr('col_months', lang), 
+            tr('col_income', lang), 
+            tr('col_expense', lang), 
+            tr('col_vat_diff', lang), 
+            tr('col_corp_tax', lang), 
+            tr('col_quarter_total', lang)
+        ]
         for col, header in enumerate(headers):
             worksheet.write(0, col, header, header_format)
         
         # Aylar ve veriler
-        months = ["OCAK", "ŞUBAT", "MART", "NİSAN", "MAYIS", "HAZİRAN", 
-                 "TEMMUZ", "AĞUSTOS", "EYLÜL", "EKİM", "KASIM", "ARALIK"]
+        months = [tr(f"month_{i+1}", lang).upper() for i in range(12)]
         
         color_mapping = {
             0: 'mavi', 1: 'mavi', 2: 'mavi',

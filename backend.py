@@ -456,7 +456,7 @@ class Backend:
     # QR İŞLEMLERİ - ENTEGRE SİSTEM (QR Operations - Integrated System)
     # ============================================================================
      
-    def process_qr_files_in_folder(self, folder_path, max_workers=8, status_callback=None):
+    def process_qr_files_in_folder(self, folder_path, max_workers=6, status_callback=None, lang="tr"):
         """
         QR dosyalarını işler - qrayiklanmis.py modülüne yönlendirir.
         
@@ -464,6 +464,7 @@ class Backend:
             folder_path: İşlenecek dosyaların klasör yolu
             max_workers: Paralel işlem sayısı
             status_callback: İlerleme bildirimi için callback (opsiyonel)
+            lang: Dil kodu (varsayılan: "tr")
             
         Returns:
             list: QR işleme sonuçları
@@ -482,7 +483,8 @@ class Backend:
         return self.qr_integrator.process_qr_files_in_folder(
             folder_path, 
             max_workers, 
-            status_callback=combined_callback if status_callback else None
+            status_callback=combined_callback if status_callback else None,
+            lang=lang
         )
     
     def add_invoices_from_qr_data(self, qr_results, invoice_type):
