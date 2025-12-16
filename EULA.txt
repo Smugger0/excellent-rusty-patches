@@ -1,0 +1,54 @@
+END-USER LICENSE AGREEMENT (EULA)
+Software: Excellent (Invoice Management System)
+Version: v1.0.0
+
+PLEASE READ THIS AGREEMENT CAREFULLY. BY INSTALLING OR USING THIS SOFTWARE, YOU AGREE TO BE BOUND BY THE TERMS BELOW.
+
+1. LICENSE AND FREEDOMS
+This software is "Free Software" and is licensed under the GNU Affero General Public License (AGPL) Version 3. This EULA (End-User License Agreement) DOES NOT restrict, limit, or modify the rights granted to you under the AGPLv3 (such as accessing the source code, modifying, or distributing the software).
+
+In the event of any conflict between the terms of this EULA and the AGPLv3, the terms of the AGPLv3 shall prevail. You may access the source code of this software from our GitHub repository or project page.
+
+2. DISCLAIMER OF WARRANTY (IMPORTANT)
+This software performs financial operations including invoice calculations, tax estimations, and currency exchange rate retrieval (via TCMB integration). The Developer;
+a) DOES NOT guarantee 100% accuracy of the calculations,
+b) DOES NOT guarantee full compliance with local tax laws or regulations,
+c) DOES NOT guarantee the real-time accuracy of currency data fetched from third-party services (e.g., TCMB).
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. By using this software, you acknowledge and agree that the responsibility for verifying the accuracy of all financial records, tax declarations, and calculations lies solely with you (the User). The Developer shall not be liable for any damages, including but not limited to data loss, incorrect calculations, tax penalties, or financial losses arising from the use of this software.
+
+3. LAWFUL USE
+You agree to use this software solely for lawful purposes in accordance with applicable laws and regulations. It is strictly prohibited to use this software for fraudulent activities, issuance of fake invoices, tax evasion, or money laundering. Any legal liability arising from such unlawful use belongs entirely to the User.
+
+4. UPDATES AND BACKUPS
+The User is solely responsible for regularly backing up their data to prevent data loss that may occur during local database operations or backups.
+
+This agreement is provided by the copyright holders within the framework of the AGPLv3 license.
+----------------------------------------------------------------------------------------------------------
+SON KULLANICI LİSANS SÖZLEŞMESİ (EULA)
+Yazılım: Excellent (Fatura Yönetim Sistemi)
+Sürüm: v1.0.0
+
+LÜTFEN BU SÖZLEŞMEYİ DİKKATLİCE OKUYUNUZ. BU YAZILIMI KURARAK VEYA KULLANARAK AŞAĞIDAKİ ŞARTLARI KABUL ETMİŞ SAYILIRSINIZ.
+
+1. LİSANS VE ÖZGÜRLÜKLER
+Bu yazılım "Özgür Yazılım"dır ve GNU Affero Genel Kamu Lisansı (AGPL) Sürüm 3 ile lisanslanmıştır. Bu EULA (Son Kullanıcı Sözleşmesi), AGPLv3 altında size tanınan hakları (kaynak koda erişim, değiştirme, dağıtma) HİÇBİR ŞEKİLDE KISITLAMAZ. 
+
+Eğer bu sözleşmenin herhangi bir maddesi AGPLv3 koşulları ile çelişirse, AGPLv3 koşulları geçerli olacaktır. Yazılımın kaynak koduna GitHub depomuzdan veya proje sayfasından ulaşabilirsiniz.
+
+2. SORUMLULUK REDDİ (ÖNEMLİ)
+Bu yazılım, fatura hesaplamaları, vergi oranları ve döviz kurları (TCMB entegrasyonu) gibi finansal işlemler gerçekleştirir. Geliştirici;
+a) Yazılımın hesaplamalarının %100 doğruluğunu,
+b) Vergi mevzuatına tam uyumluluğunu,
+c) TCMB'den çekilen kur verilerinin anlık doğruluğunu,
+GARANTİ ETMEZ.
+
+BU YAZILIMI KULLANARAK, FİNANSAL KAYITLARINIZIN VE VERGİ BEYANLARINIZIN DOĞRULUĞUNU KONTROL ETME SORUMLULUĞUNUN TAMAMEN SİZE (KULLANICIYA) AİT OLDUĞUNU KABUL EDERSİNİZ. YAZILIMIN KULLANIMINDAN DOĞABİLECEK VERİ KAYBI, HATALI HESAPLAMA, VERGİ CEZALARI VEYA TİCARİ ZARARLARDAN GELİŞTİRİCİ SORUMLU TUTULAMAZ.
+
+3. YASAL KULLANIM
+Bu yazılımı sadece yürürlükteki yasalara uygun amaçlar için kullanmayı kabul edersiniz. Yazılımın sahte fatura düzenleme, vergi kaçırma veya yasa dışı finansal işlemlerde kullanılması kesinlikle yasaktır ve bu tür kullanımlardan doğan yasal sorumluluk tamamen kullanıcıya aittir.
+
+4. GÜNCELLEMELER VE YEDEKLEME
+Yedekleme özelliği veya yerel veritabanı kullanımı sırasında oluşabilecek veri kayıplarına karşı düzenli yedek alma sorumluluğu kullanıcıya aittir.
+
+Bu sözleşme, yazılımın telif hakkı sahipleri tarafından AGPLv3 lisansı çerçevesinde sunulmuştur.
